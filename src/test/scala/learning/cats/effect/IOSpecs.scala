@@ -76,8 +76,4 @@ class IOSpecs extends FlatSpec with Matchers {
 
   }
 
-  it should "run Cancellable" in {
-    val a: IO[String] = _
-    a.start
-  }
 }
