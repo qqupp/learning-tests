@@ -30,7 +30,7 @@ class SideEffectsDoNotComposeTest extends FlatSpec with Matchers {
     StdOut.clean()
     val squareTwiceListRefactoring =  aList.map( compose(impureSquare, impureSquare ) )
     val expectedResultRefactoring =  List(16,81)
-    val expectedSideEffectRefactoring = List("input 2 result 4", "input 3 result 9", "input 4 result 16", "input 9 result 81")
+    val expectedSideEffectRefactoring = List("input 2 result 4", "input 4 result 16", "input 3 result 9",  "input 9 result 81")
 
     squareTwiceListRefactoring shouldBe expectedResultRefactoring
     StdOut.show() shouldBe expectedSideEffectRefactoring
