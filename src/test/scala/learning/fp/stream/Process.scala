@@ -1,8 +1,9 @@
 package learning.fp.stream
 
 import scala.annotation.tailrec
+import scala.collection.immutable
 
-trait Process[I, O] {
+sealed trait Process[I, O] {
 
   def apply(input: Stream[I]): Stream[O] = this match {
     case Halt() => Stream()
@@ -19,19 +20,27 @@ trait Process[I, O] {
   def unit[O](o: => O): Process[I,O] = emit(o)
 
 
-  def pipe[O2](p2: Process[O, O2]):Process[I, O2] = (this, p2) match {
-    case (Halt(), _) => Halt()
-    case (_, Halt()) => Halt()
-    case (Await(recv, next), p2) => Await(i => recv(i).pipe(p2), next.pipe(p2))
-    case (p1, Emit(h2, t2)) => Emit[I, O2](h2, p1.pipe(t2))
-    case (Emit(h, next1), Await(recv, next2)) =>
-      val yyy: Process[O, O2] = h.map(recv).foldRight(next2)((fst, snd) => fst.append(snd))
-      val rightHead: Seq[O2] = Seq()
-      val rightTail: Process[I, O2] = next1.pipe(yyy)
-      Emit[I, O2](rightHead, rightTail)
-    case _ => ???
-  }
+  def pipe[O2](p2: Process[O, O2]):Process[I, O2] = pipe(this, p2)
 
+
+  final def pipe[A, B, C](p1: Process[A, B], p2: Process[B, C]): Process[A, C] = (p1, p2) match {
+    case (Halt(), Await(recvBpBC, pBC))      => Halt()
+    case (Halt(), Emit(seqC, pBC))           => Emit(seqC, p1.pipe(pBC))
+    case (Halt(), Halt())                    => Halt()
+
+    case (Await(recvApAB, nextpAB), Halt())               => Halt()
+    case (Await(recvApAB, nextpAB), Emit(seqC, pBC))      => Emit(seqC, p1.pipe(pBC))
+    case (Await(recvApAB, nextpAB), Await(recvBpBC, pBC)) => Await(a => (recvApAB(a) append(nextpAB)).pipe(p2), nextpAB.pipe(p2))
+
+    case (Emit(bs, pAB), Await(recvBpBC, pBC)) =>
+      val folded: Process[B, C] = bs.map(recvBpBC).foldRight(pBC)((l, r) => l.append(r))
+      val xx: Process[A, C] = pAB.pipe(folded)
+      xx
+
+    case (Emit(seqB, pAB), Emit(seqC, pBC)) => Emit(seqC, Emit(seqB).append(pAB).pipe(pBC))
+    case (Emit(seqB, pAB), Halt()) => Halt()
+
+  }
 
   final def emitAll[A, B](h1: Seq[B], t1: Process[A, B]): Emit[A, B] = t1 match {
     case Emit(h2, t2) => Emit(h1 ++ h2, t2)
@@ -83,7 +92,9 @@ object T extends App {
   val p2: Process[String, String] = Process.lift[String, String](s => s"processing $s")
   val p3: Process[String, Unit] = Process.lift[String, Unit](s => println(s))
 
-  val p4: Process[Int, Unit] = p1.pipe(p2).pipe(p3)
+  val p4 = p1.pipe(p2).pipe(p3)
 
-  p4.apply(Stream(1,2,3,4))push push push con il push saLAVATT
+  val result = p4.apply(Stream(1,2,3,4, 5, 6, 7)).toList
+
+  println(result)
 }
