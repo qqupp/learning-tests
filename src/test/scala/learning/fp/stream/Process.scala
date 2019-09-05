@@ -24,9 +24,9 @@ sealed trait Process[I, O] {
 
 
   final def pipe[A, B, C](p1: Process[A, B], p2: Process[B, C]): Process[A, C] = (p1, p2) match {
-    case (Halt(), Await(recvBpBC, pBC))      => Halt()
-    case (Halt(), Emit(seqC, pBC))           => Emit(seqC, p1.pipe(pBC))
-    case (Halt(), Halt())                    => Halt()
+    case (Halt(), Await(recvBpBC, pBC))                   => Halt()
+    case (Halt(), Emit(seqC, pBC))                        => Emit(seqC, p1.pipe(pBC))
+    case (Halt(), Halt())                                 => Halt()
 
     case (Await(recvApAB, nextpAB), Halt())               => Halt()
     case (Await(recvApAB, nextpAB), Emit(seqC, pBC))      => Emit(seqC, p1.pipe(pBC))
@@ -34,12 +34,26 @@ sealed trait Process[I, O] {
 
     case (Emit(bs, pAB), Await(recvBpBC, pBC)) =>
       val folded: Process[B, C] = bs.map(recvBpBC).foldRight(pBC)((l, r) => l.append(r))
-      val xx: Process[A, C] = pAB.pipe(folded)
-      xx
+      pAB.pipe(folded)
 
-    case (Emit(seqB, pAB), Emit(seqC, pBC)) => Emit(seqC, Emit(seqB).append(pAB).pipe(pBC))
-    case (Emit(seqB, pAB), Halt()) => Halt()
+    case (Emit(seqB, pAB), Emit(seqC, pBC))    => Emit(seqC, Emit(seqB).append(pAB).pipe(pBC))
+    case (Emit(seqB, pAB), Halt())             => Halt()
 
+  }
+
+  def repeat: Process[I,O] = {
+
+    def go(p: Process[I, O]): Process[I, O] = p match {
+      case Halt() => go(this)
+      case Await(recv,fb) => Await(recv andThen go, fb)
+      case Emit(h, t) => Emit(h, go(t))
+    }
+
+    go(this)
+  }
+
+  def filter[I](f: I => Boolean): Process[I,I] = {
+    Await[I,I](i => if (f(i)) emit(i) else Halt()) repeat
   }
 
   final def emitAll[A, B](h1: Seq[B], t1: Process[A, B]): Emit[A, B] = t1 match {
@@ -88,11 +102,13 @@ case class Halt[I, O]() extends Process[I, O]
 
 object T extends App {
 
+  val p0: Process[Int, Int] = Process.lift(identity)
   val p1: Process[Int, String] = Process.lift[Int, String](i => i.toString)
   val p2: Process[String, String] = Process.lift[String, String](s => s"processing $s")
   val p3: Process[String, Unit] = Process.lift[String, Unit](s => println(s))
 
-  val p4 = p1.pipe(p2).pipe(p3)
+  val p01: Process[Int, Int] = p0.filter(i => i % 2 == 0)
+  val p4 = p01.pipe(p1.pipe(p2.pipe(p3)))
 
   val result = p4.apply(Stream(1,2,3,4, 5, 6, 7)).toList
 
