@@ -153,6 +153,16 @@ object Process {
           Emit(i, lift(identity))
     })
   }
+
+  def count[I]: Process[I,Int] = {
+    def go(n: Int): Process[I,Int] =
+      Await({
+        case Some(i) => Emit(n + 1, go(n + 1))
+        case None => Halt()
+      })
+
+    go(0)
+  }
 }
 
 object OnlinePlayground extends App {
@@ -170,7 +180,7 @@ object OnlinePlayground extends App {
 
   def t4[T] = take[T](4)
 
-  val result2 = dropWhile[Int](_ <= 14).pipe(printerP[Int].pipe(takeWhile(_ <= 25)))(Stream.from(1)).toList
+  val result2 = dropWhile[Int](_ <= 14).pipe(printerP[Int].pipe(takeWhile(_ <= 25))).pipe(count)(Stream.from(1)).toList
 
   println(result2)
 }
