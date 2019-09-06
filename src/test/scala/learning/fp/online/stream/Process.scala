@@ -163,6 +163,10 @@ object Process {
 
     go(0)
   }
+
+  def zipWithIndex[T]: Process[T, (T, Int)] = {
+    lift[T, T](identity).flatMap( t => count.map( x => (t,x)))
+  }
 }
 
 object OnlinePlayground extends App {
@@ -180,7 +184,7 @@ object OnlinePlayground extends App {
 
   def t4[T] = take[T](4)
 
-  val result2 = dropWhile[Int](_ <= 14).pipe(printerP[Int].pipe(takeWhile(_ <= 25))).pipe(count)(Stream.from(1)).toList
+  val result2 = dropWhile[Int](_ <= 14).pipe(printerP[Int].pipe(takeWhile(_ <= 25))).pipe(zipWithIndex)(Stream.from(1)).toList
 
   println(result2)
 }
