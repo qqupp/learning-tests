@@ -1,7 +1,6 @@
-package learning.fp.stream
+package learning.fp.pdf.stream
 
 import scala.annotation.tailrec
-import scala.collection.immutable
 
 sealed trait Process[I, O] {
 
@@ -9,7 +8,17 @@ sealed trait Process[I, O] {
 
   def pipe[O2](p2: Process[O, O2]):Process[I, O2] = Process.pipe(this, p2)
 
-  def repeat: Process[I,O] = Process.repeat(this)
+  def repeat: Process[I,O] = {
+
+    def go(p: Process[I, O]): Process[I, O] = p match {
+      case Halt() => go(this)
+      case Await(recv,fb) =>
+        Await(recv andThen go, fb)
+      case Emit(h, t) => Emit(h, go(t))
+    }
+
+    go(this)
+  }
 
   def append(next: Process[I, O]): Process[I, O] = Process.concat(this, next)
 
@@ -18,9 +27,11 @@ sealed trait Process[I, O] {
   def flatMap[O2](f: O => Process[I, O2]): Process[I, O2] = Process.flatMap(this)(f)
 }
 
+
 case class Emit[I, O](head: Seq[O], tail: Process[I, O] = Halt[I, O]()) extends Process[I, O]
 case class Await[I, O](recv: I => Process[I, O], finalizer: Process[I, O] = Halt[I, O]()) extends Process[I, O]
 case class Halt[I, O]() extends Process[I, O]
+
 
 object Process {
 
@@ -43,7 +54,7 @@ object Process {
 
     case (Await(recvApAB, nextpAB), Halt())               => Halt()
     case (Await(recvApAB, nextpAB), Emit(seqC, pBC))      => Emit(seqC, p1.pipe(pBC))
-    case (Await(recvApAB, nextpAB), Await(recvBpBC, pBC)) => Await(a => (recvApAB(a) append(nextpAB)).pipe(p2), nextpAB.pipe(p2))
+    case (Await(recvApAB, nextpAB), Await(recvBpBC, pBC)) => Await(a => (recvApAB(a) append nextpAB).pipe(p2), nextpAB.pipe(p2))
 
     case (Emit(seqB, pAB), Emit(seqC, pBC))               => Emit(seqC, Emit(seqB).append(pAB).pipe(pBC))
     case (Emit(seqB, pAB), Halt())                        => Halt()
@@ -87,37 +98,8 @@ object Process {
 
   def unit[O](o: => O): Process[Any,O] = emit[Any, O](o)
 
-
-  def repeat[I, O](p: Process[I, O]): Process[I,O] = {
-
-    def go(pg: Process[I, O]): Process[I, O] = pg match {
-      case Halt() => go(p)
-      case Await(recv,fb) => Await(recv andThen go, fb)
-      case Emit(h, t) => Emit(h, go(t))
-    }
-
-    go(p)
-  }
-
   def filter[I](f: I => Boolean): Process[I,I] = {
     Await[I,I](i => if (f(i)) Process.emit(i) else Halt()) repeat
   }
 
-
-}
-
-
-object T extends App {
-
-  val p0: Process[Int, Int] = Process.lift(identity)
-  val p1: Process[Int, String] = Process.lift[Int, String](i => i.toString)
-  val p2: Process[String, String] = Process.lift[String, String](s => s"processing $s")
-  val p3: Process[String, Unit] = Process.lift[String, Unit](s => println(s))
-
-  val p01: Process[Int, Int] = p0.pipe(Process.filter(i => i % 2 == 0))
-  val p4 = p01.pipe(p1.pipe(p2.pipe(p3)))
-
-  val result = p4.apply(Stream(1,2,3,4, 5, 6, 7)).toList
-
-  println(result)
 }
