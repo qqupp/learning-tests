@@ -6,12 +6,8 @@ import scala.util.Try
 
 class ScalatestSpec extends FlatSpec with Matchers {
 
-
-  val aOption: Option[Int] = None
-
   "option" should "be defined" in {
-
-    donDoThis{
+    donDoThis {
       aOption.isDefined shouldBe true
       //false was not equal to true
     }
@@ -20,39 +16,30 @@ class ScalatestSpec extends FlatSpec with Matchers {
     //None was not defined
   }
 
-  it should "hvae a value" in  {
-
-    donDoThis{
+  it should "hvae a value" in {
+    donDoThis {
       aOption.get shouldBe 1
       // no such element exception
     }
 
     import OptionValues._
     aOption.value shouldBe 1
-
   }
 
-
-  val aEither: Either[String, Int] = Left("A")
-
-  "either" should "have a left or right value" in {
-
-    donDoThis{
-      aEither.left.get shouldBe  "A"
+  "either" should "have a left value" in {
+    donDoThis {
+      anEither.left.get shouldBe "B"
     }
 
     import EitherValues._
-    aEither.left.value shouldBe "A"
-    aEither.right.value shouldBe 10
+    anEither.left.value shouldBe "B"
   }
 
-  object Collections {
-    val empty = List()
-    val one = List(1)
-    val numbers = List(2, 4, 5, 6)
-    val options = List(Some(2), None, Some(1), Some(3))
-  }
+  it should "have a right value" in {
 
+    import EitherValues._
+    anEither.right.value shouldBe 10
+  }
 
   "collections" should "check empty" in {
     Collections.empty should not be empty
@@ -72,28 +59,44 @@ class ScalatestSpec extends FlatSpec with Matchers {
     forAll(Collections.options)(_.value shouldBe 1)
   }
 
-
   it should "check forEvery" in {
     import OptionValues._
     import Inspectors._
     forEvery(Collections.options)(_.value shouldBe 1)
   }
 
-
   "Exception" should "assertThrow" in {
-    assertThrows[NullPointerException]( throw  new Exception("Boom!"))
+    assertThrows[MyException2]{
+      throw new MyException1("Boom!")
+    }
   }
 
   it should "a exeption " in {
-    a [NullPointerException] shouldBe thrownBy( throw  new Exception("Boom!"))
+
+    a[MyException2] shouldBe thrownBy{
+      throw new MyException1("Boom!")
+    }
   }
 
   it should "intercept" in {
-    val exn = intercept[Exception]( throw new Exception("Boom!"))
-    exn.getMessage shouldBe "Boom!"
+    val exn = intercept[MyException1](throw new MyException1("Boom!"))
+    exn.getMessage shouldBe "Boom!!"
   }
 
+  private def donDoThis[A](a: => A) = ()
 
+  private val aOption: Option[Int] = None
 
-  def donDoThis[A](a: => A) = ()
+  private val anEither: Either[String, Int] = Left("A")
+
+  private object Collections {
+    val empty = List()
+    val one = List(1)
+    val numbers = List(2, 4, 5, 6)
+    val options = List(Some(2), None, Some(1), Some(3))
+  }
+
+  private class MyException1(override val getMessage: String) extends Exception
+  private class MyException2(override val getMessage: String) extends Exception
+
 }
