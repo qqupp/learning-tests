@@ -1,4 +1,4 @@
-package learning.fp.io.fatto.in.casa
+package learning.fp.iofattoincasa
 
 import java.util.concurrent.ScheduledExecutorService
 
@@ -6,14 +6,18 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
 trait IO[+A]
+
+object IO {
+  def apply[T](t: => T): IO[T] = FFI.delay(t)
+}
+
+
 final case class Pure[A](value: A) extends IO[A]
 final case class FlatMap[B, +A](io: IO[B], k: B => IO[A]) extends IO[A]
 final case class Delay[+A](thunk: () => A) extends IO[A]
 final case class Async[+A](k: (A => Unit) => Unit) extends IO[A]
 
-object IO {
-  def apply[T](t: => T): IO[T] = FFI.delay(t)
-}
+
 
 trait Fiber[F[_], T] {
   def join: F[T]
@@ -34,20 +38,18 @@ object FFI {
 
 
   // submit the continuation to a thread pool
-  def shift(implicit executionContext: ExecutionContext) = async{ callBack =>
+  def shift(implicit executionContext: ExecutionContext): IO[Unit] = async{ callBack =>
 
-    val runnable = new Runnable {
-      override def run(): Unit = callBack()
-    }
-
-    executionContext.execute(runnable)
+    val u: Unit = ()
+    executionContext.execute(() => callBack(u))
   }
 
   import Syntax._
   import Runners._
-  def spawn[A](io: IO[A])(implicit executionContext: ExecutionContext): IO[A] = async{ callBack =>
+  // same as start.void in cats
+  def spawn[A](io: IO[A])(implicit executionContext: ExecutionContext): IO[Unit] = async{ callBack =>
     unsafeRunAsync(shift >> io)(_ => ())
-    callBack()
+    callBack(())
   }
 }
 
@@ -70,6 +72,7 @@ object Syntax {
     def map[B](f: A => B): IO[B] = Combinators.map(io)(f)
     def flatMap[B](f: A => IO[B]): IO[B] = Combinators.flatMap(io)(f)
     def >>[B](fb: IO[B]): IO[B] = Combinators.flatMap(io)(_ => fb)
+    def spawn(implicit executionContext: ExecutionContext): IO[Unit] = FFI.spawn(io)
   }
 
 }
@@ -148,6 +151,8 @@ object Runners {
 trait IOApp {
   def ec: ExecutionContext
   def ses: ScheduledExecutorService
+
+
 }
 
 object SimpleProgram extends App {
@@ -164,5 +169,48 @@ object SimpleProgram extends App {
   })
 
   val result = Runners.unsafeRunAsync(program)(v => println(s"you've got $v"))
+
+}
+
+
+object SimpleConcurrent2 extends App {
+
+  import Syntax._
+  import Combinators._
+  import ExecutionContext.Implicits.global
+
+  def put[T](v: T, t: Int): IO[Unit] = {
+    val threadId = Thread.currentThread().getId
+    if (t < 0)
+      IO.apply(())
+    else
+      IO(println(s"$threadId $v $t ")) >> put(v, t - 1)
+  }
+
+  val concurrent =
+    for {
+      _ <- put("a", 2000).spawn
+      _ <- put("b", 2000).spawn
+      _ <- put("c", 2000).spawn
+      _ <- put("d", 2000).spawn
+      _ <- put("e", 2000).spawn
+      _ <- put("f", 2000).spawn
+      _ <- put("g", 2000).spawn
+    } yield ()
+
+  def time = IO(System.currentTimeMillis())
+
+  val program =
+    for {
+      start <- time
+      _ <- concurrent
+      end <- time
+    }yield println(s"start: $start, end: $end, totat: ${end - start}")
+  Runners.unsafeRunAsync(program)(v => ())
+
+
+  while (true) {
+  }
+
 
 }
