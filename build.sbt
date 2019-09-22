@@ -18,7 +18,8 @@ lazy val root = (project in file("."))
       "-Xfatal-warnings",
     ),
     libraryDependencies ++= Seq(
-      scalaTest
+      scalaTest,
+      scalaCheck
     ) ++ cats
   )
 
