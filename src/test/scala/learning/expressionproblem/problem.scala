@@ -10,7 +10,7 @@ object problem {
     Expression
 
     Banana extends Expression
-    RectangularBoxSize2(e1: Expression, e2: Expression) extends Expression
+    Box(e1: Expression, e2: Expression) extends Expression
 
 
     Operations

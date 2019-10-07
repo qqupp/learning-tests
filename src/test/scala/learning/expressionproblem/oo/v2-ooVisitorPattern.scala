@@ -8,24 +8,24 @@ object StartingConditionOOVisitor {
     def accept[T](visitor: ExpressionVisitor[T]): T
   }
 
-  class Banana(val p: Int) extends Expression {
+  class Banana extends Expression {
     def accept[T](visitor: ExpressionVisitor[T]): T = visitor.visitBanana(this)
   }
 
-  class RectangularBoxSize2(val e1: Expression, val e2: Expression) extends Expression {
-    def accept[T](visitor: ExpressionVisitor[T]): T = visitor.visitRectanguraBoxSize2(this)
+  class Box(val e1: Expression, val e2: Expression) extends Expression {
+    def accept[T](visitor: ExpressionVisitor[T]): T = visitor.visitBox(this)
   }
 
   trait ExpressionVisitor[T] {
     def visitBanana(b: Banana): T
-    def visitRectanguraBoxSize2(box: RectangularBoxSize2): T
+    def visitBox(box: Box): T
   }
 
 
   class priceVisitor extends ExpressionVisitor[Int] {
-    def visitBanana(b: Banana): Int = b.p
+    def visitBanana(b: Banana): Int = 10
 
-    def visitRectanguraBoxSize2(box: RectangularBoxSize2): Int = box.e1.accept(this) + box.e2.accept(this) - 1
+    def visitBox(box: Box): Int = box.e1.accept(this) + box.e2.accept(this) - 1
   }
 
 }
@@ -39,7 +39,7 @@ object ExtensionOOVisitor {
   class weightVisitor extends ExpressionVisitor[Int] {
     def visitBanana(b: Banana): Int = 100
 
-    def visitRectanguraBoxSize2(box: RectangularBoxSize2): Int = 2000
+    def visitBox(box: Box): Int = 2000
   }
 
 
@@ -49,11 +49,11 @@ object ExtensionOOVisitor {
 object ExampleVisitor extends App {
   import ExtensionOOVisitor._
 
-  val exp1 = new RectangularBoxSize2(
-    new Banana(10),
-    new RectangularBoxSize2(
-      new Banana(10),
-      new Banana(10)
+  val exp1 = new Box(
+    new Banana,
+    new Box(
+      new Banana,
+      new Banana
     )
   )
 
