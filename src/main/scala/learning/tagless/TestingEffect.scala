@@ -11,6 +11,30 @@ class TestingEffect[TestEnv] {
   type StateTest[A] = State[TestEnv, A]
   type TestEffect[A] = EitherT[StateTest, Throwable, A]
 
+
+  object TestEffect {
+
+    def apply[A](runState: TestEnv => (TestEnv, A)): TestEffect[A] =
+      EitherT{
+        State{ s =>
+          val tuple = runState(s)
+          (tuple._1, Right(tuple._2))
+        }
+      }
+
+
+    def error[A](runState: TestEnv => (TestEnv, Throwable)): TestEffect[A] =
+      EitherT{
+        State{ s =>
+          val tuple = runState(s)
+          (tuple._1, Left(tuple._2))
+        }
+      }
+
+    def empty: TestEffect[Unit] = EitherT(State( s => (s, Right(()) ) ))
+
+  }
+
   object MonadError {
     import cats.data.EitherT._
     val instance: MonadError[TestEffect, Throwable] = implicitly[MonadError[TestEffect, Throwable]]
