@@ -28,8 +28,10 @@ object Evaluation {
     case And(a, b)  => et(sem(a)(r)(s), sem(b)(r)(s))
     case Or(a, b)   => vel(sem(a)(r)(s), sem(b)(r)(s))
     case Not(a)     => non(sem(a)(r)(s))
-    case IfThenElse(LitteralBool(a), b, c) => if (a) sem(b)(r)(s) else sem(c)(r)(s)
-    case IfThenElse(a, _, _)        => failWith(s"$a non a boolean value")
+    case IfThenElse(a, b, c) => sem(a)(r)(s) match {
+                                  case EBool(aa) => if (aa) sem (b) (r) (s) else sem (c) (r) (s)
+                                  case _ => failWith(s"$a non a boolean value")
+                                }
     case Val(a) => semDen(a)(r)(s) match {
                      case DLoc(l) => mvalToEval(s.applyStore(l))
                      case _ => failWith(s"$e not a variable")
