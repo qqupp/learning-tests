@@ -1,11 +1,7 @@
 package learning.cats.effect
 
-import cats._
-import cats.data.Kleisli
-import cats.implicits._
-import cats.syntax._
 import cats.effect.IO
-import com.sun.xml.internal.bind.v2.schemagen.episode.Klass
+import cats.implicits._
 import org.scalatest.{FlatSpec, Matchers}
 
 class SideEffectsDoNotComposeTest extends FlatSpec with Matchers {
