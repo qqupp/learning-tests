@@ -3,6 +3,8 @@ package learning.codec
 import cats._
 import cats.implicits._
 
+import scala.util.Try
+
 /*
   Generalized decoder from A to B with Error E
  */
@@ -12,13 +14,21 @@ final case class Decoder[-A, +E, +B](decode: A => Either[E, B]) {
   def andThen[E1 >: E, C](decoder: Decoder[B, E1, C]): Decoder[A, E1, C] =
     Decoder { a => decode(a).flatMap( decoder.decode ) }
 
-  def ignoreError: Decoder[A, Nothing, Option[B]] =
+  def errorToOption: Decoder[A, Nothing, Option[B]] =
     Decoder { a => decode(a) match {
       case Left(_) => Right(None)
       case Right(b) => Right(Some(b))
       }
     }
 
+  def errorToEither: Decoder[A, Nothing, Either[E, B]] =
+    Decoder { a => decode(a) match {
+      case Left(e) => Right(Left(e))
+      case Right(b) => Right(Right(b))
+      }
+    }
+
+  def provide(a: A): Decoder[Any, E, B] = Decoder(_ => decode(a))
 
   def toTraversableList: Decoder[List[A], E, List[B]] = toTraversable[List, A, B]
 
@@ -33,20 +43,14 @@ final case class Decoder[-A, +E, +B](decode: A => Either[E, B]) {
 
   def flatMap[AA <: A, E1 >: E, C](f: B => Decoder[AA, E1, C]): Decoder[AA, E1, C] =
     Decoder { a =>
-      decode(a) match {
-        case Left(e) => Left(e)
-        case Right(b) => f(b).decode(a)
-      }
+      decode(a).flatMap( b => f(b).decode(a) )
     }
 }
 
 
 object Decoder {
-  def success[T](value: T): Decoder[Any, Nothing, T] = Decoder(_ => Right(value))
-  def fail[T](value: T): Decoder[Any, T, Nothing] = Decoder(_ => Left(value))
+  def succeedWith[T](value: T): Decoder[Any, Nothing, T] = Decoder(_ => Right(value))
+  def failWith[T](value: T): Decoder[Any, T, Nothing] = Decoder(_ => Left(value))
+  def from[A, B](f: A => B): Decoder[A, Throwable, B] = Decoder(a => Try(f(a)).toEither)
 
-  import cats._
-  import cats.implicits._
-  def traversingDecoder[F[_] : Traverse, A, E, B](decoder: Decoder[A, E, B]): Decoder[F[A], E, F[B]] =
-    Decoder(traversable => traversable.traverse(decoder(_)))
 }

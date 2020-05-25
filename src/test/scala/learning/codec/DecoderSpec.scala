@@ -40,21 +40,25 @@ class DecoderSpec extends FlatSpec with Matchers {
   }
 
   it should "remove the errors lifting the result to an option" in {
-    val noErrorDecoder: Decoder[String, Nothing, Option[Int]] = str2Int.ignoreError
+    val noErrorDecoder: Decoder[String, Nothing, Option[Int]] = str2Int.errorToOption
 
     noErrorDecoder("1") shouldBe Right(Some(1))
     noErrorDecoder("asdf") shouldBe Right(None)
   }
+
+  it should "be created fro a simple function a => b" in {
+    val f: Int => String = _.toString
+
+    val int2string: Decoder[Int, Throwable, String] = Decoder.from(f)
+  }
+
+
 
   lazy val str2Csv: Decoder[String, Nothing, List[String]] =
     Decoder( s => Right(s.split(",").toList) )
 
   lazy val str2Int: Decoder[String, Throwable, Int] =
     Decoder((str: String) => Try(str.toInt).toEither )
-
-  import cats._
-  import cats.implicits._
-  lazy val lxxx: Decoder[List[String], Throwable, List[Int]] = Decoder(l => l.traverse(str2Int(_)))
 
   class PosIntException(msg: String) extends Exception(msg)
   sealed abstract case class PosInt(x: Int)
