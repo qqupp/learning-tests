@@ -96,17 +96,20 @@ class DecoderSpec extends FlatSpec with Matchers {
     strCsv2ListInt("1,EEEEE,2,ASDF,3,4") shouldBe Right(List(1,2,3,4))
   }
 
-  it should "use orElse" in {
-    val tenthChar: Decoder[String, Throwable, Char] = Decoder.fromImpure(_.charAt(9))
-    val secondChar: Decoder[String, Throwable, Char] = Decoder.fromImpure(_.charAt(1))
+  it should "use orElse and whiden the type accordingly" in {
+    sealed trait CharAt
+    case class C10th(c: Char) extends CharAt
+    case class C2nd(c: Char) extends CharAt
+    val tenthChar: Decoder[String, Throwable, C10th] = Decoder.fromImpure(s => C10th(s.charAt(9)))
+    val secondChar: Decoder[String, Throwable, C2nd] = Decoder.fromImpure(s => C2nd(s.charAt(1)))
 
-    val tenthorsecondCharDecoder = tenthChar orElse(secondChar)
+    val tenthorsecondCharDecoder: Decoder[String, Throwable, CharAt] = tenthChar orElse(secondChar)
 
     tenthorsecondCharDecoder("") shouldBe a[Left[_, _]]
-    tenthorsecondCharDecoder("0X2") shouldBe Right('X')
-    tenthorsecondCharDecoder("0X2345678") shouldBe Right('X')
-    tenthorsecondCharDecoder("012345678Y") shouldBe Right('Y')
-    tenthorsecondCharDecoder("012345678Y45678") shouldBe Right('Y')
+    tenthorsecondCharDecoder("0X2") shouldBe Right(C2nd('X'))
+    tenthorsecondCharDecoder("0X2345678") shouldBe Right(C2nd('X'))
+    tenthorsecondCharDecoder("012345678Y") shouldBe Right(C10th('Y'))
+    tenthorsecondCharDecoder("012345678Y45678") shouldBe Right(C10th('Y'))
   }
 
 
