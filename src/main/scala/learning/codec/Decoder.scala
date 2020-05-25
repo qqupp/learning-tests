@@ -15,6 +15,14 @@ final case class Decoder[-A, +E, +B](decode: A => Either[E, B]) {
   def andThen[E1 >: E, C](decoder: Decoder[B, E1, C]): Decoder[A, E1, C] =
     Decoder { a => decode(a).flatMap( decoder.decode ) }
 
+  def orElse[AA <: A, EE >: E, BB >: B](decoder: => Decoder[AA, EE, BB]):  Decoder[AA, EE, BB] =
+    Decoder { a =>
+      decode(a) match {
+        case Left(_) => decoder.decode(a)
+        case Right(b) => Right(b)
+      }
+    }
+
   def errorToOption: Decoder[A, Nothing, Option[B]] =
     Decoder { a => decode(a) match {
       case Left(_) => Right(None)

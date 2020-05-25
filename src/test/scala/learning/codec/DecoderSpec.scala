@@ -88,6 +88,26 @@ class DecoderSpec extends FlatSpec with Matchers {
     val stringError: Decoder[String, String, Char] = fstCharDecoder.mapError(_ => "error type changed")
   }
 
+  it should "traverse dropping" in {
+    val strCsv2ListInt: Decoder[String, Nothing, List[Int]] =
+      str2Csv andThen str2Int.errorToOption.toTraversableList.map(_.collect{ case Some(x) => x })
+
+    strCsv2ListInt("1,2,3,4") shouldBe Right(List(1,2,3,4))
+    strCsv2ListInt("1,EEEEE,2,ASDF,3,4") shouldBe Right(List(1,2,3,4))
+  }
+
+  it should "use orElse" in {
+    val tenthChar: Decoder[String, Throwable, Char] = Decoder.fromImpure(_.charAt(9))
+    val secondChar: Decoder[String, Throwable, Char] = Decoder.fromImpure(_.charAt(1))
+
+    val tenthorsecondCharDecoder = tenthChar orElse(secondChar)
+
+    tenthorsecondCharDecoder("") shouldBe a[Left[_, _]]
+    tenthorsecondCharDecoder("0X2") shouldBe Right('X')
+    tenthorsecondCharDecoder("0X2345678") shouldBe Right('X')
+    tenthorsecondCharDecoder("012345678Y") shouldBe Right('Y')
+    tenthorsecondCharDecoder("012345678Y45678") shouldBe Right('Y')
+  }
 
 
 
