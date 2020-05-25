@@ -46,15 +46,15 @@ class DecoderSpec extends FlatSpec with Matchers {
     noErrorDecoder("asdf") shouldBe Right(None)
   }
 
-  it should "be created fro a simple function a => b" in {
+  it should "be created from a simple function a => b" in {
     val f: Int => String = _.toString
 
-    val int2string: Decoder[Int, Throwable, String] = Decoder.from(f)
+    val int2string: Decoder[Int, Throwable, String] = Decoder.fromImpure(f)
   }
 
   it should "be composable flatMap" in {
-    val fstCharDecoder: Decoder[String, Throwable, Char] = Decoder.from(_.charAt(0))
-    val sndCharDecoder: Decoder[String, Throwable, Char] = Decoder.from(_.charAt(1))
+    val fstCharDecoder: Decoder[String, Throwable, Char] = Decoder.fromImpure(_.charAt(0))
+    val sndCharDecoder: Decoder[String, Throwable, Char] = Decoder.fromImpure(_.charAt(1))
 
     val pair: Decoder[String, Throwable, (Char, Char)] =
       for {
@@ -81,6 +81,13 @@ class DecoderSpec extends FlatSpec with Matchers {
 
     d2(false) shouldBe Right(21)
   }
+
+  it should "be rfinable in the error type" in {
+    val fstCharDecoder: Decoder[String, Throwable, Char] = Decoder.fromImpure(_.charAt(0))
+
+    val stringError: Decoder[String, String, Char] = fstCharDecoder.mapError(_ => "error type changed")
+  }
+
 
 
 

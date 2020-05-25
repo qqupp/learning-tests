@@ -56,5 +56,5 @@ final case class Decoder[-A, +E, +B](decode: A => Either[E, B]) {
 object Decoder {
   def succeedWith[T](value: T): Decoder[Any, Nothing, T] = Decoder(_ => Right(value))
   def failWith[T](value: T): Decoder[Any, T, Nothing] = Decoder(_ => Left(value))
-  def from[A, B](f: A => B): Decoder[A, Throwable, B] = Decoder(a => Try(f(a)).toEither)
+  def fromImpure[A, B](f: A => B): Decoder[A, Throwable, B] = Decoder(a => Try(f(a)).toEither)
 }
