@@ -9,6 +9,7 @@ import scala.util.Try
   Generalized decoder from A to B with Error E
  */
 final case class Decoder[-A, +E, +B](decode: A => Either[E, B]) {
+
   def apply(a: A): Either[E, B] = decode(a)
 
   def andThen[E1 >: E, C](decoder: Decoder[B, E1, C]): Decoder[A, E1, C] =
@@ -45,6 +46,10 @@ final case class Decoder[-A, +E, +B](decode: A => Either[E, B]) {
     Decoder { a =>
       decode(a).flatMap( b => f(b).decode(a) )
     }
+
+  def contraMap[AA](f: AA => A): Decoder[AA, E, B] =
+    Decoder( aa => decode(f(aa)) )
+
 }
 
 
@@ -52,5 +57,4 @@ object Decoder {
   def succeedWith[T](value: T): Decoder[Any, Nothing, T] = Decoder(_ => Right(value))
   def failWith[T](value: T): Decoder[Any, T, Nothing] = Decoder(_ => Left(value))
   def from[A, B](f: A => B): Decoder[A, Throwable, B] = Decoder(a => Try(f(a)).toEither)
-
 }

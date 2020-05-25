@@ -52,6 +52,36 @@ class DecoderSpec extends FlatSpec with Matchers {
     val int2string: Decoder[Int, Throwable, String] = Decoder.from(f)
   }
 
+  it should "be composable flatMap" in {
+    val fstCharDecoder: Decoder[String, Throwable, Char] = Decoder.from(_.charAt(0))
+    val sndCharDecoder: Decoder[String, Throwable, Char] = Decoder.from(_.charAt(1))
+
+    val pair: Decoder[String, Throwable, (Char, Char)] =
+      for {
+        fst <- fstCharDecoder
+        snd <- sndCharDecoder
+      } yield (fst, snd)
+
+    pair("12") shouldBe Right('1', '2')
+    pair("") shouldBe a[Left[_, _]]
+  }
+
+  it should "be mappable" in {
+    val d1: Decoder[Any, Nothing, Int] = Decoder.succeedWith(10)
+
+    val d2: Decoder[Any, Nothing, String] = d1.map(_.toString)
+
+    d2(Unit) shouldBe Right("10")
+  }
+
+  it should "be contramappable" in {
+    val d1: Decoder[Int, Nothing, Int] = Decoder( x => Right(x + 1) )
+
+    val d2: Decoder[Boolean, Throwable, Int] = d1.contraMap( b => if (b) 10 else 20 )
+
+    d2(false) shouldBe Right(21)
+  }
+
 
 
   lazy val str2Csv: Decoder[String, Nothing, List[String]] =
