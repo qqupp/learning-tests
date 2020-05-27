@@ -12,7 +12,13 @@ final case class Decoder[-A, +E, +B](decode: A => Either[E, B]) {
 
   def apply(a: A): Either[E, B] = decode(a)
 
-  def andThen[E1 >: E, C](decoder: Decoder[B, E1, C]): Decoder[A, E1, C] =
+  def ap[AA <: A, EE >: E, C](fnDecoder: Decoder[AA, EE, B => C]): Decoder[AA, EE, C] =
+    for {
+      b <- this
+      fn <- fnDecoder
+    } yield fn(b)
+
+  def andThen[EE >: E, C](decoder: Decoder[B, EE, C]): Decoder[A, EE, C] =
     Decoder { a => decode(a).flatMap( decoder.decode ) }
 
   def orElse[AA <: A, EE >: E, BB >: B](decoder: => Decoder[AA, EE, BB]):  Decoder[AA, EE, BB] =
@@ -47,10 +53,10 @@ final case class Decoder[-A, +E, +B](decode: A => Either[E, B]) {
   def map[C](f: B => C): Decoder[A, E, C] =
     Decoder { a => decode(a).map(f) }
 
-  def mapError[E1](f: E => E1): Decoder[A, E1, B] =
+  def mapError[EE](f: E => EE): Decoder[A, EE, B] =
     Decoder { a => decode(a).left.map(f) }
 
-  def flatMap[AA <: A, E1 >: E, C](f: B => Decoder[AA, E1, C]): Decoder[AA, E1, C] =
+  def flatMap[AA <: A, EE >: E, C](f: B => Decoder[AA, EE, C]): Decoder[AA, EE, C] =
     Decoder { a =>
       decode(a).flatMap( b => f(b).decode(a) )
     }

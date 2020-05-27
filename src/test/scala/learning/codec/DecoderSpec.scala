@@ -1,6 +1,9 @@
 package learning.codec
 
+import java.io
+
 import cats.Id
+import cats.data.Kleisli
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.util.Try
@@ -110,6 +113,89 @@ class DecoderSpec extends FlatSpec with Matchers {
     tenthorsecondCharDecoder("0X2345678") shouldBe Right(C2nd('X'))
     tenthorsecondCharDecoder("012345678Y") shouldBe Right(C10th('Y'))
     tenthorsecondCharDecoder("012345678Y45678") shouldBe Right(C10th('Y'))
+  }
+
+
+  it should "decode example" in {
+
+    val input = "ObjD(1,2,3)|  ObjA |    ObjB (false , 20   ) | ObjC(   true,2)"
+
+    trait MyDomain
+    case object ObjA extends MyDomain
+    case class ObjB(b: Boolean, i: Int) extends MyDomain
+    case class ObjC(b: Boolean, i: Int) extends MyDomain
+    case class ObjD(i1: Int, i2: Int, i3: Int) extends MyDomain
+
+    trait MyErrors
+    case class LowError(error: String) extends MyErrors
+    case class HigError(error: String) extends MyErrors
+
+    val strToInt: Decoder[String, Throwable, Int] =
+      Decoder.fromImpure( (s: String) => s.toInt )
+
+    val strToBoolean: Decoder[String, Throwable, Boolean] =
+      Decoder.fromImpure {
+        case "true" => true
+        case "false" => false
+      }
+
+    val trim: Decoder[String, Nothing, String] =
+      Decoder( s => Right(s.trim) )
+
+    def split(separator: Char): Decoder[String, Nothing, List[String]] =
+      Decoder(input => Right(input.split(separator).toList))
+
+    def selectArgs: Decoder[String, Throwable, String] =
+      Decoder.fromImpure { s =>
+        val `fst(` = s.indexOf('(')
+        val `last)` = s.lastIndexOf(')')
+        s.substring(`fst(` + 1, `last)`)
+      }
+
+    val aDecoder: Decoder[String, HigError, ObjA.type] =
+      Decoder( s => Either.cond( s.startsWith("ObjA"), ObjA, HigError(s"$s not match")) )
+
+    val bFunDecoder: Decoder[String, HigError, Boolean => Int => ObjB] =
+      Decoder( s => Either.cond( s.startsWith("ObjB"), (ObjB.apply _).curried , HigError(s"$s not match")) )
+
+    val cFunDecoder: Decoder[String, HigError, Boolean => Int => ObjC] =
+      Decoder( s => Either.cond( s.startsWith("ObjC"), (ObjC.apply _).curried , HigError(s"$s not match")) )
+
+    val dFunDecoder: Decoder[String, HigError, Int => Int => Int => ObjD] =
+      Decoder( s => Either.cond( s.startsWith("ObjD"), (ObjD.apply _).curried , HigError(s"$s not match")) )
+
+    def argSelector[T](args: List[T], selector: Int): Decoder[Any, LowError, T] =
+      Decoder.fromImpure((_: Any) => args(selector)).mapError(_ => LowError(s"Cant select $selector from $args"))
+
+    def argN
+
+    val dDecoder: Decoder[String, MyErrors, ObjD] =
+      (for {
+        fn <- dFunDecoder
+        args <- (selectArgs andThen split(',') andThen ( trim andThen strToInt ).toTraversableList)
+                  .mapError(t => HigError("cant build arguments"))
+        arg1 <- argSelector(args, 0)
+        arg2 <- argSelector(args, 1)
+        arg3 <- argSelector(args, 2)
+      } yield fn(arg1)(arg2)(arg3))
+
+    val bcDecoder: Decoder[String, MyErrors, MyDomain] = {
+      for {
+        fn <- (bFunDecoder orElse cFunDecoder)
+        args <- (selectArgs andThen split(',') andThen trim.toTraversableList)
+                  .mapError(t => HigError("cant build arguments") )
+        arg1 <- argSelector(args, 0) andThen strToBoolean.mapError(e => LowError(s"$e"))
+        arg2 <- argSelector(args, 1) andThen strToInt.mapError(e => LowError(s"$e"))
+      } yield fn(arg1)(arg2)
+    }
+
+    val domainDecoder: Decoder[String, MyErrors, MyDomain] = (aDecoder orElse bcDecoder orElse dDecoder)
+
+    val strToDomainObjListDecoder: Decoder[String, MyErrors, List[MyDomain]] = {
+      split('|') andThen trim.toTraversableList andThen domainDecoder.toTraversableList
+    }
+
+    strToDomainObjListDecoder(input) shouldBe 1
   }
 
 
