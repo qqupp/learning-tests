@@ -38,6 +38,8 @@ object Parser {
         tokens.+=(t)
       }
 
+      class ConsumeException(msg: String) extends RuntimeException(msg)
+
       def consumeWithe(i: List[Char]): List[Char] = i match {
         case Nil => Nil
         case c :: cs => if (c.isWhitespace)
@@ -47,7 +49,7 @@ object Parser {
 
       // doesn't allow escaping fixme
       def consumeString(i: List[Char], acc: ListBuffer[Char] = ListBuffer()): List[Char] = i match {
-        case Nil => throw new RuntimeException("non closed quote in string")
+        case Nil => throw new ConsumeException("non closed quote in string")
         case c :: cs =>
           if (c == '"') {
             insertToken(CharSequence(acc.mkString))
@@ -97,7 +99,7 @@ object Parser {
             else if (c.isWhitespace)
               consume(consumeWithe(cs))
             else
-              throw new RuntimeException(s"Unrecognized char '$c' intcode: ${c.toInt} for tokenizer")
+              throw new ConsumeException(s"Unrecognized char '$c' intcode: ${c.toInt} for tokenizer")
         }
       }
 
@@ -106,7 +108,7 @@ object Parser {
         consume(input)
         Right(tokens.toList)
       } catch {
-        case e: RuntimeException => Left(e.getMessage)
+        case e: ConsumeException => Left(e.getMessage)
       }
 
     }
