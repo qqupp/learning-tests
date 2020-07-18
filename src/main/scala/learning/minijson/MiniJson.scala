@@ -2,7 +2,7 @@ package learning.minijson
 
 object MiniJson {
 
-  sealed trait Json
+  sealed trait Json extends Product with Serializable
 
   final case object JNull extends Json
 

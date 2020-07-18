@@ -5,13 +5,28 @@ object zzzzDemoZipper extends App {
   import MiniJson._
   import Show._
   import Zipper._
-  import zzzMoveUtils._
 
   val j1 = JObject(List(
     "str" -> JString("this is a string"),
     "int" -> JInt(0),
     "arr" -> JArray(List(JFalse, JTrue, JNull, JInt(10)))
   ))
+
+
+  // old interface to move
+  sealed trait Move
+  case object U extends Move
+  case object D extends Move
+  case object R extends Move
+  case object L extends Move
+
+  def moveTo(cursor: Cursor, moves: Move *): Result[Cursor] = moves.toList match {
+    case Nil => Right(cursor)
+    case U :: ms =>  cursor.goUp.flatMap(moveTo(_, ms :_*))
+    case D :: ms =>  cursor.goDown.flatMap(moveTo(_, ms :_*))
+    case L :: ms =>  cursor.goLeft.flatMap(moveTo(_, ms :_*))
+    case R :: ms =>  cursor.goRight.flatMap(moveTo(_, ms :_*))
+  }
 
   val c1 = moveTo(jsonToCursor(j1), D, R, R, D, R, R).right.get
 
