@@ -1,5 +1,6 @@
 package learning.minijson
 
+import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
 
 object Parser {
@@ -59,25 +60,65 @@ object Parser {
           }
       }
 
-      // rewrite this to nfa automata
-      def consumeNumeric(i: List[Char], acc: ListBuffer[Char] = ListBuffer()): List[Char] =
-        i match {
-          case Nil =>
-            if (acc.isEmpty)
-              Nil
-            else {
-              insertToken(Numeric(acc.mkString))
-              Nil
-            }
+      def consumeNumeric(i: List[Char]): List[Char] = {
+        val buff: ListBuffer[Char] = ListBuffer()
 
-          case n :: cs  =>
-            if (n.isDigit || n == '.' || n == 'e' || n == 'E' || n == '-' || n == '+')
-              consumeNumeric(cs, acc.+=(n))
-            else {
-              insertToken(Numeric(acc.mkString))
-              i
-            }
+        val acceptingStates = Set(1,2,6,7)
+        def isFinal(state: Int) = acceptingStates.contains(state)
+
+        def is1to9(c: Char) = c.>=('1') && c.<=('9')
+        def isZero(c: Char) = c == '0'
+        def is0to9(c: Char) = is1to9(c) || isZero(c)
+        def isExponent(c: Char) = c == 'e' || c == 'E'
+        def isSign(c: Char) = c == '+' || c == '-'
+
+        /*
+          State Zero Digit19 Minus Point Exp Sign
+            0    1      2      3
+            1*                       4    5
+            2*   2      2            4    5
+            3    1      2
+            4    6      6
+            5    7      7                      8
+            6*   6      6                 5
+            7*   7      7
+            8    7      7
+         */
+        @tailrec
+        def runDfa(input: List[Char], state: Int): List[Char] = (state, input) match {
+          case (_, Nil) => if (isFinal(state)) {
+                              insertToken(Numeric(buff.mkString))
+                              Nil
+                           } else
+                              throw new ConsumeException(s"Unexpected number format")
+          case (0, '-' :: cs)                 => buff.+=('-'); runDfa(cs, 3)
+          case (0, '0' :: cs)                 => buff.+=('0'); runDfa(cs, 1)
+          case (0,  c :: cs) if is1to9(c)     => buff.+=(c);   runDfa(cs, 2)
+          case (1, '.' :: cs)                 => buff.+=('.'); runDfa(cs, 4)
+          case (1,  c :: cs) if isExponent(c) => buff.+=(c);   runDfa(cs, 5)
+          case (2, '.' :: cs)                 => buff.+=('.'); runDfa(cs, 4)
+          case (2,  c :: cs) if is0to9(c)     => buff.+=(c);   runDfa(cs, 2)
+          case (2,  c :: cs) if isExponent(c) => buff.+=(c);   runDfa(cs, 5)
+          case (3,  c :: cs) if is1to9(c)     => buff.+=(c);   runDfa(cs, 2)
+          case (3, '0' :: cs)                 => buff.+=('0'); runDfa(cs, 1)
+          case (4,  c :: cs) if is0to9(c)     => buff.+=(c);   runDfa(cs, 6)
+          case (5,  c :: cs) if is0to9(c)     => buff.+=(c);   runDfa(cs, 7)
+          case (5,  c :: cs) if isSign(c)     => buff.+=(c);   runDfa(cs, 8)
+          case (6,  c :: cs) if is0to9(c)     => buff.+=(c);   runDfa(cs, 6)
+          case (6,  c :: cs) if isExponent(c) => buff.+=(c);   runDfa(cs, 5)
+          case (7,  c :: cs) if is0to9(c)     => buff.+=(c);   runDfa(cs, 7)
+          case (8,  c :: cs) if is0to9(c)     => buff.+=(c);   runDfa(cs, 7)
+          case (s,  c :: _) => if (isFinal(s)){
+                                  insertToken(Numeric(buff.mkString))
+                                  input
+                                } else
+                                   throw new ConsumeException(s"Unexpected number format ${buff.mkString} $c ")
         }
+
+
+        runDfa(i, 0)
+      }
+
 
       def consume(i: List[Char]): Unit  = {
         i match {
