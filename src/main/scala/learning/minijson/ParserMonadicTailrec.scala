@@ -3,7 +3,7 @@ package learning.minijson
 import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
 
-object Parser {
+object ParserMonadicTailrec {
 
   import MiniJson._
   type ErrorOr[T] = Either[String, T]
@@ -152,11 +152,15 @@ object Parser {
 
     }
 
-    final case class State[T](run: List[Token] => (List[Token], ErrorOr[T])) { self =>
+    import scala.util.control.TailCalls._
+    final case class State[T](run: List[Token] => TailRec[(List[Token], ErrorOr[T])]) {
+      self =>
 
       def map[T1](f: T => T1): State[T1] = State { input =>
-        val (s1, errorOrT) = run(input)
-        (s1, errorOrT.map(f))
+        tailcall {
+          run(input).map { case (s1, errorOrT) => (s1, errorOrT.map(f))
+          }
+        }
       }
 
       def *>[T1](newState: State[T1]): State[T1] = self.flatMap(_ => newState)
@@ -164,38 +168,44 @@ object Parser {
       def <*[T1](newState: State[T1]): State[T] = self.flatMap(r => newState.map(_ => r))
 
       def flatMap[T1](f: T => State[T1]): State[T1] = State { input =>
-        val (s1, errorOrT) = run(input)
-        errorOrT.map(f) match {
-          case Left(e) => (s1, Left(e))
-          case Right(t) => t.run(s1)
+        tailcall {
+          run(input).flatMap { case (s1, errorOrT) =>
+            errorOrT.map(f) match {
+              case Left(e) => done((s1, Left(e)))
+              case Right(t) => t.run(s1)
+            }
+          }
         }
       }
 
       def orElse[TT >: T](fallBack: => State[TT]): State[TT] = State { input =>
-        val (s1, errorOrT) = run(input)
-        errorOrT match {
-          case Left(_) => fallBack.run(input)
-          case Right(t) => (s1, Right(t))
+        tailcall {
+          run(input).flatMap { case (s1, errorOrT) =>
+            errorOrT match {
+              case Left(_) => fallBack.run(input)
+              case Right(t) => done((s1, Right(t)))
+            }
+          }
         }
       }
-
     }
 
-    final def pure[T](t: T): State[T] = State(i => (i, Right(t)))
+    final def pure[T](t: T): State[T] = State(i => done((i, Right(t))))
+    final def state[T](pf: Function1[List[Token], (List[Token], ErrorOr[T])]): State[T] = State(pf.andThen(done))
 
 
-    final def matchBoolean: State[Json] = State {
+    final def matchBoolean: State[Json] = state {
       case `true` :: ts => (ts, Right(JTrue))
       case `false` :: ts => (ts, Right(JFalse))
       case others => (others, Left("boolean expected"))
     }
 
-    final def matchNull: State[Json] = State {
+    final def matchNull: State[Json] = state {
       case `null` :: ts => (ts, Right(JNull))
       case others => (others, Left("null expected"))
     }
 
-    final def matchString: State[Json] = State {
+    final def matchString: State[Json] = state {
       case CharSequence(x) :: ts => (ts, Right(JString(x)))
       case others => (others, Left("charseq expected"))
     }
@@ -208,23 +218,23 @@ object Parser {
       }
     }
 
-    final def matchInt: State[Json] = State {
+    final def matchInt: State[Json] = state {
       case Numeric(x) :: ts => (ts, convertNumeric(x))
       case others => (others, Left("numeric expected"))
     }
 
     // jArr
-    final def matchLBracket: State[Unit] = State {
+    final def matchLBracket: State[Unit] = state {
       case `[` :: ts => (ts, Right(()))
       case others => (others, Left("paren expected"))
     }
 
-    final def matchRBracket: State[Unit] = State {
+    final def matchRBracket: State[Unit] = state {
       case `]` :: ts => (ts, Right(()))
       case others => (others, Left("paren expected"))
     }
 
-    final def matchComma: State[Unit] = State {
+    final def matchComma: State[Unit] = state {
       case `,` :: ts => (ts, Right(()))
       case others => (others, Left("comma expected"))
     }
@@ -243,22 +253,22 @@ object Parser {
     }
 
     // jObj
-    final def matchLBrace: State[Unit] = State {
+    final def matchLBrace: State[Unit] = state {
       case `{` :: ts => (ts, Right(()))
       case others => (others, Left("paren expected"))
     }
 
-    final def matchRBrace: State[Unit] = State {
+    final def matchRBrace: State[Unit] = state {
       case `}` :: ts => (ts, Right(()))
       case others => (others, Left("paren expected"))
     }
 
-    final def matchColon: State[Unit] = State {
+    final def matchColon: State[Unit] = state {
       case `:` :: ts => (ts, Right(()))
       case others => (others, Left("colon expected"))
     }
 
-    final def matchKey: State[String] = State {
+    final def matchKey: State[String] = state {
       case CharSequence(x) :: ts => (ts, Right(x))
       case others => (others, Left("charseq expected"))
     }
@@ -286,7 +296,7 @@ object Parser {
         .orElse(matchObject)
 
     final def parseJson(tokens: List[Token]): ErrorOr[Json] = {
-      val (remainingTokens, result) = matchJson.run(tokens)
+      val (remainingTokens, result) = matchJson.run(tokens).result
 
       if (remainingTokens.isEmpty)
         result
