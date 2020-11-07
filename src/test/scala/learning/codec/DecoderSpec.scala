@@ -167,8 +167,6 @@ class DecoderSpec extends FlatSpec with Matchers {
     def argSelector[T](args: List[T], selector: Int): Decoder[Any, LowError, T] =
       Decoder.fromImpure((_: Any) => args(selector)).mapError(_ => LowError(s"Cant select $selector from $args"))
 
-    def argN
-
     val dDecoder: Decoder[String, MyErrors, ObjD] =
       (for {
         fn <- dFunDecoder
