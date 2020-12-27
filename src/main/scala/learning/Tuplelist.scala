@@ -2,6 +2,27 @@ package learning
 
 object TupleList extends App {
 
+  object homogeneousVersion {
+    sealed trait HVar
+    case class HVZ()        extends HVar
+    case class HVS(v: HVar) extends HVar
+
+    sealed trait U
+    case class US(s: String) extends U
+    case class UC(c: Char)   extends U
+    case class UI(i: Int)    extends U
+
+    type Env = List[U]
+
+    def lookup(v: HVar, env: Env): U =
+      (v, env) match {
+        case (HVZ(), e :: _)   => e
+        case (HVS(s), _ :: es) => lookup(s, es)
+        case _                 => throw new Exception("empty list")
+      }
+
+  }
+
   //from Typed Tagless Final Interpreters
   // 3  Interpreting Typed Higher-Order Languages
 
