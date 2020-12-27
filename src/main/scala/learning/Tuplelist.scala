@@ -36,9 +36,12 @@ object TupleList extends App {
 
   def lookp[H, T, E, O](v: Var[E, O], env: (H, T))(implicit ev: E =:= Tuple2[H, T]): O =
     (v, env) match {
-      case (VZ(), (h, _))            => h.asInstanceOf[O]
-      case (vv: VS[a, e, t], (_, t)) => lookp(vv.v.asInstanceOf[Var[Tuple2[a, e], t]], t.asInstanceOf[Tuple2[a, e]])
-      case _                         => ???
+      case (VZ(), (envHead, _))            => envHead.asInstanceOf[O]
+      case (vs: VS[a, e, t], (_, envTail)) =>
+        lookp(
+          vs.v.asInstanceOf[Var[Tuple2[a, e], t]],
+          envTail.asInstanceOf[Tuple2[a, e]]
+        )
     }
 
   val myEnv: (String, (Int, (Char, Unit)))                = "one" ::: 2 ::: '3' ::: ()
