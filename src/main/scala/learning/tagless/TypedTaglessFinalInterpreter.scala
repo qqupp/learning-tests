@@ -180,7 +180,7 @@ object TypedTaglessFinalInterpreter extends App {
     }
 
     trait FixSYM[F[_]] {
-      def fix[A, B](f: F[(A => B) => A => B]): F[A => B]
+      def fix[A, B](f: F[(A => B)] => F[A => B]): F[A => B]
     }
 
     // example composed symantics
@@ -195,18 +195,16 @@ object TypedTaglessFinalInterpreter extends App {
        */
 
       lam { (x: F[Int]) =>
-        fix {
-          lam { (pow: F[Int => Int]) =>
-            lam { (exp: F[Int]) =>
-              ifThenElse(
-                equal(exp, int(0)),
-                int(1),
-                mul(
-                  x,
-                  app(pow, add(exp, int(-1)))
-                )
+        fix { (pow: F[Int => Int]) =>
+          lam { (exp: F[Int]) =>
+            ifThenElse(
+              equal(exp, int(0)),
+              int(1),
+              mul(
+                x,
+                app(pow, add(exp, int(-1)))
               )
-            }
+            )
           }
         }
       }
@@ -218,7 +216,7 @@ object TypedTaglessFinalInterpreter extends App {
     }
     /*
     tpow27 with eval in S run with VarCount(0) will produce:
-    ( x0 => fix { ( x2 => ( x3 => if ( x3 == 0 ) then 1 else ( x0 * x2.apply( ( x3 + -1 ) ) ) ) ) } ).apply( 2 ).apply( 7 )
+    ( x0 => fix self1 @ { ( x2 => if ( x2 == 0 ) then 1 else ( x0 * self1.apply( ( x2 + -1 ) ) ) ) } ).apply( 2 ).apply( 7 )
 
     tpow27 with eval in R will produce
     R(128)
@@ -239,8 +237,8 @@ object TypedTaglessFinalInterpreter extends App {
     }
 
     val instanceRF: FixSYM[R] = new FixSYM[R] {
-      def fix[A, B](f: R[(A => B) => A => B]): R[A => B] =
-        R { x => f.unR(fix(f).unR)(x) }
+      def fix[A, B](f: R[A => B] => R[A => B]): R[A => B] =
+        R { (x: A) => f(fix(f)).unR(x) }
     }
 
     // implementation for S
@@ -260,10 +258,10 @@ object TypedTaglessFinalInterpreter extends App {
     }
 
     val instanceSF: FixSYM[S] = new FixSYM[S] {
-      def fix[A, B](f: S[(A => B) => A => B]): S[A => B] =
+      def fix[A, B](f: S[A => B] => S[A => B]): S[A => B] =
         S { vc =>
           val self = s"self${vc.x}"
-          s"fix { ${f.unS(vc.incr)} }"
+          s"fix $self @ { ${f(S(_ => self)).unS(vc.incr)} }"
         }
     }
   }
