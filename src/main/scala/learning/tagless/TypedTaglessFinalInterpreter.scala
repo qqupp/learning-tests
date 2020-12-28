@@ -191,7 +191,7 @@ object TypedTaglessFinalInterpreter extends App {
       import F._
 
       /*
-       (x: Int) => fix((pow: Int => Int) => (exp: Int) =>  if (exp == 0) 1 else x * pow(exp - 1))        val powI = fix(g(2))
+       (x: Int) => fix((pow: Int => Int) => (exp: Int) =>  if (exp == 0) 1 else x * pow(exp - 1))
        */
 
       lam { (x: F[Int]) =>
@@ -216,6 +216,13 @@ object TypedTaglessFinalInterpreter extends App {
       import S._
       app(app(tpow(S, M, B, F), int(2)), int(7))
     }
+    /*
+    tpow27 with eval in S run with VarCount(0) will produce:
+    ( x0 => fix { ( x2 => ( x3 => if ( x3 == 0 ) then 1 else ( x0 * x2.apply( ( x3 + -1 ) ) ) ) ) } ).apply( 2 ).apply( 7 )
+
+    tpow27 with eval in R will produce
+    R(128)
+     */
 
     // interpreters extensions
     val instanceRM: MulSYM[R] = new MulSYM[R] {
