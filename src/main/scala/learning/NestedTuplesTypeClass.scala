@@ -95,43 +95,89 @@ object NestedTuplesTypeClass extends App {
   case class T14()
   case class T15()
   case class T16()
-  case class T17()
-  case class T18()
-  case class T19()
-  case class T20()
-  case class T21()
-  case class T22()
-  case class T23()
-  case class T24()
-  case class T25()
-  case class T26()
-  case class T27()
-  case class T28()
-  case class T29()
-  case class T30()
 
-  type TestType = (
-      (((T01, (T02, T03)), ((T04, T05), T06)), ((T07, T08), ((T09, T10), (T11, T12)))),
-      (
-          ((T13, (T14, T15)), ((((T16, T17), T18), T19), T20)),
-          ((T21, (T22, (T23, (T24, T25)))), (T26, (T27, (T28, (T29, T30)))))
-      )
-  )
+  type TestType =
+    ((((T01, T02), (T03, T04)), ((T05, T06), (T07, T08))), (((T09, T10), (T11, T12)), ((T13, T14), (T15, T16))))
 
-  val test: TestType =
+  val test: TestType = (
     (
-      (((T01(), (T02(), T03())), ((T04(), T05()), T06())), ((T07(), T08()), ((T09(), T10()), (T11(), T12())))),
       (
-        ((T13(), (T14(), T15())), ((((T16(), T17()), T18()), T19()), T20())),
-        (((T21(), (T22(), (T23(), (T24(), T25()))))), (T26(), (T27(), (T28(), (T29(), T30())))))
+        (
+          (
+            (
+              (
+                T01(),
+                T02()
+              )
+            ),
+            (
+              (
+                T03(),
+                T04()
+              )
+            )
+          )
+        ),
+        (
+          (
+            (
+              (
+                T05(),
+                T06()
+              )
+            ),
+            (
+              (
+                T07(),
+                T08()
+              )
+            )
+          )
+        )
+      )
+    ),
+    (
+      (
+        (
+          (
+            (
+              (
+                T09(),
+                T10()
+              )
+            ),
+            (
+              (
+                T11(),
+                T12()
+              )
+            )
+          )
+        ),
+        (
+          (
+            (
+              (
+                T13(),
+                T14()
+              )
+            ),
+            (
+              (
+                T15(),
+                T16()
+              )
+            )
+          )
+        )
       )
     )
+  )
 
-  val tLL = has[T29](test)
+  val testPath = has[T06](test)
 
-  println(tLL)
+  println(testPath)
 
-  println(implicitly[AhasB[TestType, T18, _]].dir)
-  //Right(Left(Right(Left(Left(Right(Found))))))
+  println(implicitly[AhasB[TestType, T06, _]].dir)
 
 }
