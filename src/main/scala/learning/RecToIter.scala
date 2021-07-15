@@ -1,37 +1,42 @@
 package learning
 
+import scala.annotation.tailrec
+
 object RecToIter extends App {
 
   class MutableStack[T] {
 
     private trait S
     private case class Push(top: T, rest: S) extends S
-    private case object Empty extends S
-    private var stack: S =  Empty
+    private case object Empty                extends S
+    private var stack: S = Empty
 
     def push(t: T): Unit = stack = Push(t, stack)
-    def pop: T = stack match {
-      case Push(t, rest) =>
-        stack = rest
-        t
-      case _ => throw new RuntimeException()
-    }
+    def pop: T           =
+      stack match {
+        case Push(t, rest) =>
+          stack = rest
+          t
+        case _             => throw new RuntimeException()
+      }
 
-    def isEmpty: Boolean = stack match {
-      case Empty => true
-      case _ => false
-    }
+    def isEmpty: Boolean =
+      stack match {
+        case Empty => true
+        case _     => false
+      }
 
     def notEmpty: Boolean = !isEmpty
 
-    def peek: T = stack match {
-      case Push(t, _) => t
-      case _ => throw new RuntimeException()
-    }
+    def peek: T =
+      stack match {
+        case Push(t, _) => t
+        case _          => throw new RuntimeException()
+      }
   }
 
   def recFactorial(n: Int): Int =
-    if (n == 0) 1 else n * recFactorial(n -1)
+    if (n == 0) 1 else n * recFactorial(n - 1)
 
   /*
     Execution example for fact 4
@@ -64,18 +69,16 @@ object RecToIter extends App {
     1
    */
 
-
-
   def iterFactorial_SingleStack(n: Int): Int = {
 
     trait Label
     case class EvalActualParam(actualN: Int) extends Label
-    case class KontFrame(k: Int => Int) extends Label
-    case class Return(r: Int) extends Label
-    case class ReturnUnit() extends Label
+    case class KontFrame(k: Int => Int)      extends Label
+    case class Return(r: Int)                extends Label
+    case class ReturnUnit()                  extends Label
 
     val stack: MutableStack[Label] = new MutableStack()
-    var returnValue: Int = -1
+    var returnValue: Int           = -1
 
     stack.push(ReturnUnit())
     stack.push(EvalActualParam(n))
@@ -83,44 +86,41 @@ object RecToIter extends App {
     while (stack.notEmpty) {
       val current = stack.pop
 
-      current match  {
+      current match {
         case EvalActualParam(x) =>
           if (x == 0)
             stack.push(Return(1))
           else {
-            stack.push(KontFrame(y =>  x * y))
-            stack.push(EvalActualParam( x - 1 ))
+            stack.push(KontFrame(y => x * y))
+            stack.push(EvalActualParam(x - 1))
           }
 
-        case Return(x) =>
+        case Return(x)          =>
           val next = stack.pop
           next match {
             case KontFrame(k) => stack.push(Return(k(x)))
             case ReturnUnit() => returnValue = x
-            case _ => stack.push(next)
+            case _            => stack.push(next)
           }
 
-        case _ =>
+        case _                  =>
       }
     }
 
     returnValue
   }
 
-
   def iterFactorial_doubleStack(n: Int): Int = {
     //if (n == 0) 1 else mul(n, recFactorial(n -1))
 
     trait Label
     case class EvalActualParam(actualN: Int) extends Label
-    case class KontFrame(k: Int => Int) extends Label
-    case class Return() extends Label
+    case class KontFrame(k: Int => Int)      extends Label
+    case class Return()                      extends Label
 
-    val stack: MutableStack[Label] = new MutableStack()
+    val stack: MutableStack[Label]  = new MutableStack()
     val tmpStack: MutableStack[Int] = new MutableStack()
-    var returnValue: Int = -1
-
-
+    var returnValue: Int            = -1
 
     stack.push(Return())
     stack.push(EvalActualParam(n))
@@ -128,65 +128,63 @@ object RecToIter extends App {
     while (stack.notEmpty) {
       val current = stack.pop
 
-      current match  {
+      current match {
         case EvalActualParam(x) =>
           if (x == 0)
             tmpStack.push(1)
           else {
-            stack.push(KontFrame(y =>  x * y))
-            stack.push(EvalActualParam( x - 1 ))
+            stack.push(KontFrame(y => x * y))
+            stack.push(EvalActualParam(x - 1))
           }
 
-        case KontFrame(k) =>
+        case KontFrame(k)       =>
           val x = tmpStack.pop
           tmpStack.push(k(x))
 
-        case Return() =>
+        case Return()           =>
           returnValue = tmpStack.pop
       }
     }
 
     returnValue
 
-
   }
 
-  def recFib(n: Int): Int = n match {
-    case 0 => 0
-    case 1 => 1
-    case 2 => 1
-    case _ => recFib(n - 2) + recFib(n - 1)
-  }
-
-
+  def recFib(n: Int): Int =
+    n match {
+      case 0 => 0
+      case 1 => 1
+      case 2 => 1
+      case _ => recFib(n - 2) + recFib(n - 1)
+    }
 
   def iterFib(n: Int): Int = {
 
     trait Label
-    case class Eval(x: Int) extends Label
+    case class Eval(x: Int)               extends Label
     case class Kont(k: Int => Int => Int) extends Label
 
     val stack: MutableStack[Label] = new MutableStack()
-    var retValue: Int = -1
+    var retValue: Int              = -1
 
     val argStack: MutableStack[Int] = new MutableStack()
-    def Return(x: Int) = argStack.push(x)
+    def Return(x: Int)              = argStack.push(x)
 
     stack.push(Eval(n))
 
     while (stack.notEmpty) {
       stack.pop match {
         case Eval(x) =>
-            println(s"Eval $x")
-            x match {
-              case 0 => Return(0)
-              case 1 => Return(1)
-              case 2 => Return(1)
-              case _ =>
-                stack.push(Kont(x1 => x2 => x1 + x2))
-                stack.push(Eval(x - 1))
-                stack.push(Eval(x - 2))
-            }
+          println(s"Eval $x")
+          x match {
+            case 0 => Return(0)
+            case 1 => Return(1)
+            case 2 => Return(1)
+            case _ =>
+              stack.push(Kont(x1 => x2 => x1 + x2))
+              stack.push(Eval(x - 1))
+              stack.push(Eval(x - 2))
+          }
 
         case Kont(f) =>
           val arg2 = argStack.pop
@@ -201,22 +199,21 @@ object RecToIter extends App {
     retValue
   }
 
-
-  def recSort(l: List[Int]): List[Int] = l match {
-    case Nil => Nil
-    case x::xs =>
-      val (lt, gt) = xs.partition(y => y <= x)
-      recSort(lt) ++ (x :: recSort(gt))
-  }
-
+  def recSort(l: List[Int]): List[Int] =
+    l match {
+      case Nil     => Nil
+      case x :: xs =>
+        val (lt, gt) = xs.partition(y => y <= x)
+        recSort(lt) ++ (x :: recSort(gt))
+    }
 
   def iterSort(l: List[Int]): List[Int] = {
 
     trait Label
-    case class Eval(arg: List[Int]) extends Label
+    case class Eval(arg: List[Int])                         extends Label
     case class Kont(f: List[Int] => List[Int] => List[Int]) extends Label
 
-    val stack: MutableStack[Label] = new MutableStack()
+    val stack: MutableStack[Label]        = new MutableStack()
     val tmpStack: MutableStack[List[Int]] = new MutableStack()
 
     stack.push(Eval(l))
@@ -225,14 +222,14 @@ object RecToIter extends App {
       stack.pop match {
         case Eval(actualList) =>
           actualList match {
-            case Nil => tmpStack.push(Nil)
-            case x::xs =>
+            case Nil     => tmpStack.push(Nil)
+            case x :: xs =>
               val (lt, gt) = xs.partition(y => y <= x)
               stack.push(Kont(llt => lgt => llt ++ (x :: lgt)))
               stack.push(Eval(lt))
               stack.push(Eval(gt))
           }
-        case Kont(f) =>
+        case Kont(f)          =>
           val lt = tmpStack.pop
           val gt = tmpStack.pop
           tmpStack.push(f(lt)(gt))
@@ -243,15 +240,13 @@ object RecToIter extends App {
 
   }
 
-
-
   def iterSort_Noclosureavailable(l: List[Int]): List[Int] = {
 
     trait Label
     case class Eval(arg: List[Int]) extends Label
-    case class Kont(pivot: Int) extends Label
+    case class Kont(pivot: Int)     extends Label
 
-    val stack: MutableStack[Label] = new MutableStack()
+    val stack: MutableStack[Label]        = new MutableStack()
     val tmpStack: MutableStack[List[Int]] = new MutableStack()
 
     stack.push(Eval(l))
@@ -260,22 +255,70 @@ object RecToIter extends App {
       stack.pop match {
         case Eval(actualList) =>
           actualList match {
-            case Nil => tmpStack.push(Nil)
-            case x::xs =>
+            case Nil     => tmpStack.push(Nil)
+            case x :: xs =>
               val (lt, gt) = xs.partition(y => y <= x)
               stack.push(Kont(x))
               stack.push(Eval(lt))
               stack.push(Eval(gt))
           }
-        case Kont(piv) =>
+        case Kont(piv)        =>
           val lt = tmpStack.pop
           val gt = tmpStack.pop
-          tmpStack.push(lt ++ ( piv :: gt))
+          tmpStack.push(lt ++ (piv :: gt))
       }
     }
 
     tmpStack.pop
 
+  }
+
+  def sort_tailrec_2stacks(list: List[Int]): List[Int] = {
+
+    sealed trait Label
+    case class ToDo(l: List[Int]) extends Label
+    case class Done(l: List[Int]) extends Label
+
+    @tailrec
+    def go(stack: List[Label], done: List[Done]): List[Int] =
+      stack match {
+        case ToDo(curr) :: rest =>
+          curr match {
+            case Nil     => go(Done(Nil) :: rest, done)
+            case i :: is =>
+              val (lt, gt) = is.partition(_ < i)
+              go(ToDo(lt) :: Done(List(i)) :: ToDo(gt) :: rest, done)
+          }
+        case (d: Done) :: rest  => go(rest, d :: done)
+
+        case Nil => done.foldLeft(List[Int]()) { case (acc, Done(l)) => l ++ acc }
+      }
+
+    go(List(ToDo(list)), List())
+  }
+
+  def sort_tailrec_optimised(list: List[Int]): List[Int] = {
+
+    sealed trait Label
+    case class ToDo(l: List[Int]) extends Label
+    case class Done(i: Int)       extends Label
+
+    @tailrec
+    def go(stack: List[Label], done: List[Int]): List[Int] =
+      stack match {
+        case ToDo(curr) :: rest =>
+          curr match {
+            case Nil     => go(rest, done)
+            case i :: is =>
+              val (lt, gt) = is.partition(_ < i)
+              go(ToDo(lt) :: Done(i) :: ToDo(gt) :: rest, done)
+          }
+        case Done(i) :: rest    => go(rest, i :: done)
+
+        case Nil => done.reverse
+      }
+
+    go(List(ToDo(list)), List())
   }
 
 }
