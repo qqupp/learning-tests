@@ -39,24 +39,24 @@ object ADT {
   case class BoolExpr(e: BExpr) extends Expr
   case class NatExpr(e: NExpr) extends Expr
 
-  val evalN : NExpr => Int  = {
-    case I( n) => n
-    case Add(e1, e2) => evalN(e1) + evalN(e2)
-    case Mul(e1, e2) => evalN(e1) * evalN(e2)
-  }
-
-  val evalB: BExpr => Boolean = {
-    case B(b) => b
-    case Eq(e1, e2) => evalN(e1) == evalN(e2)
-  }
-
-  sealed trait Evaled
-  case class EvaledB(b: Boolean) extends Evaled
-  case class EvaledN(i: Int) extends Evaled
-
-  val eval: Expr => Evaled = {
-    case BoolExpr(b) => EvaledB(evalB(b))
-    case NatExpr(n) => EvaledN(evalN(n))
-  }
+//  val evalN : NExpr => Int  = {
+//    case I( n) => n
+//    case Add(e1, e2) => evalN(e1) + evalN(e2)
+//    case Mul(e1, e2) => evalN(e1) * evalN(e2)
+//  }
+//
+//  val evalB: BExpr => Boolean = {
+//    case B(b) => b
+//    case Eq(e1, e2) => evalN(e1) == evalN(e2)
+//  }
+//
+//  sealed trait Evaled
+//  case class EvaledB(b: Boolean) extends Evaled
+//  case class EvaledN(i: Int) extends Evaled
+//
+//  val eval: Expr => Evaled = {
+//    case BoolExpr(b) => EvaledB(evalB(b))
+//    case NatExpr(n) => EvaledN(evalN(n))
+//  }
 
 }
