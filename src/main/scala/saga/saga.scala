@@ -36,10 +36,10 @@ object Saga {
     flatMap(saga)(a => pure(f(a)))
 
   // syntax
-  implicit class SagaSyntax[F[_]: Monad, A, E](saga: Saga[F, A, E]) {
+  implicit class SagaSyntax[F[_]: Monad, +A, +E](saga: Saga[F, A, E]) {
     def map[EE >: E, B](f: A => B): Saga[F, B, EE]                  = Saga.map(saga)(f)
     def flatMap[EE >: E, B](f: A => Saga[F, B, EE]): Saga[F, B, EE] = Saga.flatMap[F, A, E, B, EE](saga)(f)
-    def transact: F[Either[E, A]] = Saga.transact(saga)
+    def transact[AA >: A, EE >: E]: F[Either[EE, AA]]               = Saga.transact(saga)
   }
 
   // private interface
@@ -70,29 +70,50 @@ object Saga {
         } yield resultRecovered
     }
 
-    def go(
+    def gooo(
         rollback: List[Any => F[Any]],
-        current: F[Saga[F, Any, Any]],
+        current: Saga[F, Any, Any],
         cont: List[Any => Saga[F, Any, Any]]
     ): F[Either[E, A]] =
-      current.flatMap {
+      current match {
         case Eff(doEff, undoEff) =>
           cont match {
             case Nil     => recover(doEff, undoEff :: rollback).asInstanceOf[F[Either[E, A]]]
             case k :: ks =>
-              val ret: F[Saga[F, Any, Any]] = doEff.map {
-                case Right(x) => k(x)
-                case Left(e)  => Failure[F, Any, Any](e)
+              doEff.flatMap {
+                case Right(x) => gooo(undoEff :: rollback, k(x), ks)
+                case Left(e)  => recover(M.pure(Left(e)), undoEff :: rollback).asInstanceOf[F[Either[E, A]]]
               }
-              go(undoEff :: rollback, ret, ks)
           }
         case Failure(e)          =>
           recover(M.pure(Left(e)), rollback).asInstanceOf[F[Either[E, A]]]
         case Bind(s1, k1)        =>
-          go(rollback, M.pure(s1), anyfy(k1) :: cont)
+          gooo(rollback, s1, anyfy(k1) :: cont)
       }
 
-    go(List(), M.pure(saga), List())
+//    def go(
+//        rollback: List[Any => F[Any]],
+//        current: F[Saga[F, Any, Any]],
+//        cont: List[Any => Saga[F, Any, Any]]
+//    ): F[Either[E, A]] =
+//      current.flatMap {
+//        case Eff(doEff, undoEff) =>
+//          cont match {
+//            case Nil     => recover(doEff, undoEff :: rollback).asInstanceOf[F[Either[E, A]]]
+//            case k :: ks =>
+//              val ret: F[Saga[F, Any, Any]] = doEff.map {
+//                case Right(x) => k(x)
+//                case Left(e)  => Failure[F, Any, Any](e)
+//              }
+//              go(undoEff :: rollback, ret, ks)
+//          }
+//        case Failure(e)          =>
+//          recover(M.pure(Left(e)), rollback).asInstanceOf[F[Either[E, A]]]
+//        case Bind(s1, k1)        =>
+//          go(rollback, M.pure(s1), anyfy(k1) :: cont)
+//      }
+
+    gooo(List(), saga, List())
 
   }
 

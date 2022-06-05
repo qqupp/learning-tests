@@ -135,4 +135,20 @@ class SagaTest extends FlatSpec with Matchers {
     test.unsafeRunSync()
   }
 
+  it should "work with rollback " in {
+    val effects: Ref[IO, List[String]] = Ref.unsafe[IO, List[String]](List())
+
+    val doEff                    = effects.update(_ ++ List("do")).map(Right(_))
+    def undoEff(l: List[String]) = effects.update(_ ++ List("undo")) >> IO(l ++ List("failure"))
+
+    val saga: Saga[IO, Unit, List[String]] = for {
+      u1 <- Saga.make[IO, Unit, List[String]](doEff)(undoEff)
+      u2 <- Saga.make[IO, Unit, List[String]](doEff)(undoEff)
+      u3 <- Saga.rollback[IO, List[String]](List("error"))
+      u4 <- Saga.make[IO, Unit, List[String]](doEff)(undoEff)
+    } yield ()
+
+    saga.transact.unsafeRunSync()
+  }
+
 }
