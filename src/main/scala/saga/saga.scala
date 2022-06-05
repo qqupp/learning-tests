@@ -21,6 +21,9 @@ object Saga {
     transact_(saga)
 
   // combinators
+  def fromEffect[F[_]: Applicative, A, E](eff: F[Either[E, A]]): Saga[F, A, E] =
+    Eff(eff, (e: E) => Applicative[F].pure(e))
+
   def pure[F[_]: Applicative, A, E](a: A): Saga[F, A, E] = {
     val pv: Either[E, A] = Either.right[E, A](a)
     Eff(Applicative[F].pure(pv), (e: E) => Applicative[F].pure(e))
@@ -43,9 +46,9 @@ object Saga {
   }
 
   // private interface
-  private case class Failure[F[_], A, E](e: E)                                                    extends Saga[F, A, E]
-  private case class Eff[F[_], A, E](doEff: F[Either[E, A]], undoEff: E => F[E])                  extends Saga[F, A, E]
-  private case class Bind[F[_], A, E, EE >: E, B](saga: Saga[F, A, E], cont: A => Saga[F, B, EE]) extends Saga[F, B, EE]
+  private[saga] case class Failure[F[_], A, E](e: E)                                                    extends Saga[F, A, E]
+  private[saga] case class Eff[F[_], A, E](doEff: F[Either[E, A]], undoEff: E => F[E])                  extends Saga[F, A, E]
+  private[saga] case class Bind[F[_], A, E, EE >: E, B](saga: Saga[F, A, E], cont: A => Saga[F, B, EE]) extends Saga[F, B, EE]
 
   private def transact_[F[_]: Monad, A, E](saga: Saga[F, A, E]): F[Either[E, A]] = {
     val M = implicitly[Monad[F]]

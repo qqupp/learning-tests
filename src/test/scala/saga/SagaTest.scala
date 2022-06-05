@@ -139,16 +139,90 @@ class SagaTest extends FlatSpec with Matchers {
     val effects: Ref[IO, List[String]] = Ref.unsafe[IO, List[String]](List())
 
     val doEff                    = effects.update(_ ++ List("do")).map(Right(_))
-    def undoEff(l: List[String]) = effects.update(_ ++ List("undo")) >> IO(l ++ List("failure"))
+    def undoEff(failure: String)(l: List[String]) = effects.update(_ ++ List("undo")) >> IO(l ++ List(failure))
 
     val saga: Saga[IO, Unit, List[String]] = for {
-      u1 <- Saga.make[IO, Unit, List[String]](doEff)(undoEff)
-      u2 <- Saga.make[IO, Unit, List[String]](doEff)(undoEff)
-      u3 <- Saga.rollback[IO, List[String]](List("error"))
-      u4 <- Saga.make[IO, Unit, List[String]](doEff)(undoEff)
+      u1 <- Saga.make[IO, Unit, List[String]](doEff)(undoEff("error1"))
+      u2 <- Saga.make[IO, Unit, List[String]](doEff)(undoEff("error2"))
+      u3 <- Saga.rollback[IO, List[String]](List("errorPure"))
+      u4 <- Saga.make[IO, Unit, List[String]](doEff)(undoEff("error3"))
     } yield ()
 
-    saga.transact.unsafeRunSync()
+    saga.transact.unsafeRunSync() shouldBe Left(List("errorPure", "error2", "error1"))
+  }
+
+  it should "work with nested sagas" in {
+    val counter: Ref[IO, Long] = Ref.unsafe[IO, Long](0)
+
+    def genBinaryTree(level: Int, acc: Saga[IO, Unit, Unit]): Saga[IO, Unit, Unit] =
+      if (level == 0) acc else {
+        genBinaryTree(level -1, Bind(acc, (_: Unit) => acc))
+      }
+
+    val saga = genBinaryTree(25, Saga.make[IO, Unit, Unit](counter.update(_ + 1).map(Right(_)))((u: Unit) => IO.unit))
+
+    val transaction: IO[Either[Unit, Unit]] = saga.transact
+
+    val test = for {
+      countBefore <- counter.get
+      _ <- transaction
+      countAfter <- counter.get
+    } yield {
+      countAfter shouldBe Math.pow(2, 25)
+    }
+
+    test.unsafeRunSync()
+  }
+
+  it should "work with deep (left) nested structures" in {
+    val counter: Ref[IO, Long] = Ref.unsafe[IO, Long](0)
+
+    val increment: Saga[IO, Unit, Unit] = Saga.fromEffect[IO, Unit, Unit](counter.update(_ + 1).map(Right(_)))
+
+    def genLeft(level: Int, acc: Saga[IO, Unit, Unit]): Saga[IO, Unit, Unit] =
+      if (level == 0) acc else {
+        genLeft(level -1, Bind(acc, (_: Unit) => increment))
+      }
+
+    val saga = genLeft(100000, Saga.pure(()))
+
+    val transaction: IO[Either[Unit, Unit]] = saga.transact
+
+    val test = for {
+      countBefore <- counter.get
+      _ <- transaction
+      countAfter <- counter.get
+    } yield {
+      countAfter shouldBe 100000
+    }
+
+    test.unsafeRunSync()
+  }
+
+
+  it should "work with deep (right) nested structures" in {
+    val counter: Ref[IO, Long] = Ref.unsafe[IO, Long](0)
+
+    val increment: Saga[IO, Unit, Unit] = Saga.fromEffect[IO, Unit, Unit](counter.update(_ + 1).map(Right(_)))
+
+    def genRight(level: Int, acc: Saga[IO, Unit, Unit]): Saga[IO, Unit, Unit] =
+      if (level == 0) acc else {
+        genRight(level -1, Bind(increment, (_: Unit) => acc))
+      }
+
+    val saga = genRight(100000, Saga.pure(()))
+
+    val transaction: IO[Either[Unit, Unit]] = saga.transact
+
+    val test = for {
+      countBefore <- counter.get
+      _ <- transaction
+      countAfter <- counter.get
+    } yield {
+      countAfter shouldBe 100000
+    }
+
+    test.unsafeRunSync()
   }
 
 }
