@@ -6,6 +6,6 @@ object Dependencies {
   lazy val scalaCheck = "org.scalacheck" %% "scalacheck" % "1.14.1" % Test
 
   lazy val cats =
-    Seq("cats-core", "cats-macros", "cats-kernel", "cats-effect").map(
+    Seq("cats-core", "cats-macros", "cats-kernel", "cats-effect", "cats-free").map(
       "org.typelevel" %% _ % "2.0.0-M4")
 }
