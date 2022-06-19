@@ -2,6 +2,8 @@ package dependeincygraph
 
 import cats.free.Free
 import cats.{Monad, effect, ~>}
+import scala.reflect.runtime.universe._
+
 
 object DependencyGraph {
 
@@ -10,31 +12,29 @@ object DependencyGraph {
     FlatMap is the natural connection between nodes
    */
   trait DependencyGraphOps[F[_], A]
-  case class Node[F[_], A](name: String, value: F[A]) extends DependencyGraphOps[F, A]
+  case class Node[F[_], A](name: String, value: F[A], tag: TypeTag[A]) extends DependencyGraphOps[F, A]
 
   type DependencyGraphMonad[F[_], A] =
     Free[({type DG[X] = DependencyGraphOps[F, X]})#DG, A]
 
 
-  def create[F[_], A](name: String, value: F[A]): DependencyGraphMonad[F, A] =
-    Free.liftF(Node(name, value))
+  def create[F[_], A: TypeTag](name: String, value: F[A]): DependencyGraphMonad[F, A] =
+    Free.liftF(Node(name, value, implicitly[TypeTag[A]]))
 
 
   def wiring[F[_]] : ({type DG[X] = DependencyGraphOps[F, X]})#DG ~> F =
     new (({type DG[X] = DependencyGraphOps[F, X]})#DG ~> F) {
       override def apply[A](fa: DependencyGraphOps[F, A]): F[A] = fa match {
-        case Node(_, v) => v.asInstanceOf[F[A]]
+        case Node(_, v, _) => v.asInstanceOf[F[A]]
       }
     }
 
-  // unsafe in the type fixme
-  // check on type tag inside node???
   def subst[F[_]](substitutions: List[Node[F, _]]):
     ({type DG[X] = DependencyGraphOps[F, X]})#DG ~> F =
     new (({type DG[X] = DependencyGraphOps[F, X]})#DG ~> F) {
       override def apply[A](fa: DependencyGraphOps[F, A]): F[A] = fa match {
-        case Node(name, v) =>
-          substitutions.find(_.name == name)
+        case Node(name, v, tt) =>
+          substitutions.find(s => s.name == name && s.tag.equals(tt))
             .fold(
               v.asInstanceOf[F[A]]
             )(
@@ -69,7 +69,7 @@ object TestFM extends App {
 
 
   val io2Substitution = effect.IO{println("do something completely different"); true}
-  val subN2 = Node("label2", io2Substitution)
+  val subN2 = Node("label2", io2Substitution, implicitly[TypeTag[Boolean]])
 
 
   import cats.implicits._
