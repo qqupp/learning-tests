@@ -14,7 +14,7 @@ import scala.util.Random
  */
 final class SagaBuilder[F[_]: Monad, E] { self =>
 
-  case class Saga[A](lTransact: F[Either[E, A]], lCompensate: E => F[E])
+  case class Saga[A](localTransact: F[Either[E, A]], localCompensate: E => F[E])
 
   type SagaMonad[A] = Free[Saga, A]
 
@@ -26,17 +26,16 @@ final class SagaBuilder[F[_]: Monad, E] { self =>
 
   def transact[A](saga: SagaMonad[A]): F[Either[E, A]] = {
     val transacted = saga.foldMap(compiler).value
-    transacted.runA(Coordinator(OkToContinue))
+    transacted.runA(Coordinator())
   }
 
-  // private interface
-  private sealed trait SagaState
-  private case object OkToContinue extends SagaState
-  private case class  Compensated(compensationResult: E) extends SagaState
+  /*
+   * Private Stuff
+   */
 
-  private case class Coordinator(state: SagaState, compensations: List[E => F[E]] = List()) {
+  private case class Coordinator(compensations: List[E => F[E]] = List()) {
     def pushCompensation(c: E => F[E]): Coordinator =
-      Coordinator(state, c :: compensations)
+      Coordinator(c :: compensations)
 
     def doCompensate(e: E): F[E] =
       compensations.foldLeft(Monad[F].pure(e)){ case (acc, c) =>
@@ -44,6 +43,29 @@ final class SagaBuilder[F[_]: Monad, E] { self =>
       }
   }
 
+  private type CoordinatorState[X] = StateT[F, Coordinator, X]
+  private type StateTransactor[X] = EitherT[CoordinatorState, E, X]
+
+  private def compiler : self.Saga ~> StateTransactor =
+    new (self.Saga ~> StateTransactor) {
+
+      override def apply[A](fa: self.Saga[A]): StateTransactor[A] =
+        EitherT{
+          StateT{ (coordinator: Coordinator) =>
+            fa.localTransact.flatMap {
+              case Right(t) =>
+                val newState = coordinator.pushCompensation(fa.localCompensate)
+                Monad[F].pure(newState, Right(t))
+              case Left(e) =>
+                coordinator
+                  .pushCompensation(fa.localCompensate)
+                  .doCompensate(e).map { compensationResult =>
+                  (Coordinator(), Left(compensationResult))
+                }
+            }
+          }
+        }
+    }
 
 //  type StateTransactor[X] = StateT[F, Coordinator, Either[E, X]]
 //
@@ -72,39 +94,6 @@ final class SagaBuilder[F[_]: Monad, E] { self =>
 //          }
 //        }
 //    }
-
-  private type CoordinatorState[X] = StateT[F, Coordinator, X]
-  private type StateTransactor[X] = EitherT[CoordinatorState, E, X]
-
-  private def compiler : self.Saga ~> StateTransactor =
-    new (self.Saga ~> StateTransactor) {
-
-      override def apply[A](fa: self.Saga[A]): StateTransactor[A] =
-        EitherT{
-          StateT{ (coordinator: Coordinator) =>
-
-            (coordinator.state, fa) match {
-              case (OkToContinue, Saga(localTransact, localCompensate)) =>
-                localTransact.flatMap {
-                  case Right(t) =>
-                    val newState = coordinator.pushCompensation(localCompensate)
-                    Monad[F].pure(newState, Right(t))
-                  case Left(e) =>
-                    coordinator
-                      .pushCompensation(localCompensate)
-                      .doCompensate(e).map { compensationResult =>
-                      (Coordinator(Compensated(compensationResult)), Left(compensationResult))
-                    }
-                }
-
-              case (Compensated(compensationResult), _) =>
-                Monad[F].pure((coordinator, Left(compensationResult)))
-            }
-          }
-        }
-    }
-
-
 
 }
 
@@ -155,53 +144,3 @@ object SagaTestExample extends App {
 
 }
 
-
-//
-//object Saga {
-//
-//  sealed trait Saga[F[_], T]
-//  case class Local[F[_], E, A](lTransact: F[Either[E, A]], lCompensate: E => F[E]) extends Saga[F, Either[E, A]]
-//
-//  type SagaMonad[F[_], E, A] =
-//    Free[({type S[X] = Saga[F, Either[E, X]]})#S, A]
-//
-//
-//  def saga[F[_], E, A](localTransact: F[Either[E, A]], localCompensate: E => F[E]): SagaMonad[F, E, A] =
-//    Free.liftF(Local(localTransact, localCompensate))
-//
-//  sealed trait SagaState
-//  case object OkToContinue extends SagaState
-//  case object ToRollback extends SagaState
-//  case object RolledBack extends SagaState
-//
-//  case class Coordinator[F[_], E](state: SagaState, compensations: List[E => F[E]]) {
-//    def pushCompensation(c: E => F[E]): Coordinator[F, E] =
-//      Coordinator(state, compensations )
-//  }
-//
-//  type StateTRC[F[_], E, X] = StateT[F, Coordinator[F, E], Either[E, X]]
-//
-//  def wiring[F[_]: Monad, E] : ({type S[X] =  Saga[F, Either[E, X]]})#S ~> ({type O[X] = StateTRC[F, E, X]})#O =
-//    new (({type S[X] =  Saga[F, Either[E, X]]})#S ~> ({type O[X] = StateTRC[F, E, X]})#O) {
-//      override def apply[A](fa: Saga[F, Either[E, A]]): StateTRC[F, E, A] = StateT.apply { (s: Coordinator[F, E]) =>
-//        (s.state, fa) match {
-//          case (OkToContinue, Local(localTransact, localCompensate)) =>
-//            localTransact.map {
-//              case Right(t) =>
-//                val newState = s.pushCompensation(localCompensate)
-//                (newState, Right(t))
-//              case Left(e) =>
-//                ???
-//            }
-//
-//        }
-//      }
-//    }
-//
-//
-//
-//  def wire[F[_]: Monad, A](g: DependencyGraphMonad[F, A]): F[A] =
-//    g.foldMap(wiring[F])
-//
-//
-//}
