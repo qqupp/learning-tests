@@ -1,4 +1,4 @@
-package saga
+package saga.monad
 
 import cats.{Monad, _}
 import cats.implicits._

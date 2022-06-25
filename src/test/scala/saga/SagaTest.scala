@@ -4,8 +4,9 @@ import org.scalatest.{Assertion, FlatSpec, Matchers}
 import cats.effect._
 import cats._
 import cats.implicits._
-import Saga._
 import cats.effect.concurrent.Ref
+import saga.monad.Saga
+import saga.monad.Saga.Bind
 
 class SagaTest extends FlatSpec with Matchers {
 
@@ -159,7 +160,7 @@ class SagaTest extends FlatSpec with Matchers {
         genBinaryTree(level -1, Bind(acc, (_: Unit) => acc))
       }
 
-    val saga = genBinaryTree(25, Saga.make[IO, Unit, Unit](counter.update(_ + 1).map(Right(_)))((u: Unit) => IO.unit))
+    val saga = genBinaryTree(5, Saga.make[IO, Unit, Unit](counter.update(_ + 1).map(Right(_)))((u: Unit) => IO.unit))
 
     val transaction: IO[Either[Unit, Unit]] = saga.transact
 
@@ -174,29 +175,53 @@ class SagaTest extends FlatSpec with Matchers {
     test.unsafeRunSync()
   }
 
+  it should "list tailrec flatmap" in {
+
+
+    def genLeft(level: Int, acc: List[Int]): List[Int] =
+      if (level == 0) acc else {
+        genLeft(level -1, Monad[List].flatMap(acc)(i => List(1)))
+      }
+
+
+    val r = for {
+      i <- genLeft(100000, List(1))
+    } yield
+      i
+
+    r shouldBe List(1)
+  }
+
   it should "work with deep (left) nested structures" in {
-    val counter: Ref[IO, Long] = Ref.unsafe[IO, Long](0)
+    var counter: Long = 0
 
-    val increment: Saga[IO, Unit, Unit] = Saga.fromEffect[IO, Unit, Unit](counter.update(_ + 1).map(Right(_)))
+    def incrementID: List[Unit] = Monad[List].pure(()).flatMap(_ => List({counter += 1}))
 
-    def genLeft(level: Int, acc: Saga[IO, Unit, Unit]): Saga[IO, Unit, Unit] =
+    val increment: Saga[List, Unit, Unit] = Saga.fromEffect[List, Unit, Unit](incrementID.map(Right(_)))
+
+    def genLeft(level: Int, acc: Saga[List, Unit, Unit]): Saga[List, Unit, Unit] =
       if (level == 0) acc else {
         genLeft(level -1, Bind(acc, (_: Unit) => increment))
       }
 
     val saga = genLeft(100000, Saga.pure(()))
 
-    val transaction: IO[Either[Unit, Unit]] = saga.transact
-
-    val test = for {
-      countBefore <- counter.get
-      _ <- transaction
-      countAfter <- counter.get
-    } yield {
-      countAfter shouldBe 100000
+    var transaction: List[Either[Unit, Unit]] = List()
+    try {
+      transaction = saga.transact
+    }
+    catch {
+      case e: Throwable =>
+        println(e)
+        1 shouldBe 2
     }
 
-    test.unsafeRunSync()
+    val test: List[Assertion] = for {
+      _ <- transaction
+    } yield {
+      counter shouldBe 100000
+    }
+
   }
 
 
