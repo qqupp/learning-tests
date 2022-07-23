@@ -16,10 +16,11 @@ object HOptionalList {
   type ++:[H, T] = AtLeast1[H, T]
   type +:[H, T]  = HOptionalList[H, T]
 
+
   // A HList with optional values
   sealed trait AtLeast0[+H, +T] extends HOptionalList[H, T]
 
-  case object HONil                                                extends AtLeast0[Nothing, Nothing]
+  case object HOEmpty                                                extends AtLeast0[Nothing, Nothing]
   case class NotThis[H, HH, TT](other: AtLeast0[HH, TT])           extends AtLeast0[H, HOptionalList[HH, TT]]
   case class ThisAnd[H, HH, TT](value: H, other: AtLeast0[HH, TT]) extends AtLeast0[H, HOptionalList[HH, TT]]
 
@@ -29,7 +30,10 @@ object HOptionalList {
   case class ThisOneAnd[H, HH, TT](value: H, other: HOptionalList[HH, TT]) extends AtLeast1[H, HOptionalList[HH, TT]]
   case class NotThisOne[H, HH, TT](other: AtLeast1[HH, TT])                extends AtLeast1[H, HOptionalList[HH, TT]]
 
+  // operations
   def getFirst[X]: GetPartiallyApplied[X] = new GetPartiallyApplied[X]
+
+  def updateFirst[A]: UpdatePartiallyApplied[A] = new UpdatePartiallyApplied[A]
 
   class GetPartiallyApplied[X] {
     def apply[H, T](atLeast: HOptionalList[H, T])(implicit ev: Getter[HOptionalList[H, T], X]): Option[X] =
@@ -46,7 +50,7 @@ object HOptionalList {
         a match {
           case v: ThisOneAnd[H, _, _] => Some(v.value)
           case v: NotThisOne[H, _, _] => None
-          case HONil                  => None
+          case HOEmpty                  => None
           case v: NotThis[H, _, _]    => None
           case v: ThisAnd[H, _, _]    => Some(v.value)
         }
@@ -60,15 +64,14 @@ object HOptionalList {
         a match {
           case v: ThisOneAnd[HH, H, T] => ev.get(v.other)
           case v: NotThisOne[HH, H, T] => ev.get(v.other)
-          case HONil                   => None
+          case HOEmpty                   => None
           case v: NotThis[HH, H, T]    => ev.get(v.other)
           case v: ThisAnd[HH, H, T]    => ev.get(v.other)
         }
     }
 
-  def updateFirst[A]: PartiallyAppliedUpdater[A] = new PartiallyAppliedUpdater[A]
 
-  class PartiallyAppliedUpdater[A] {
+  class UpdatePartiallyApplied[A] {
     def apply[H, T](list: HOptionalList[H, T], f: Option[A] => A)(implicit
         ev: Updater[HOptionalList[H, T], A, AtLeast1[H, T]]
     ): AtLeast1[H, T] =
@@ -91,7 +94,7 @@ object HOptionalList {
           case v: ThisOneAnd[HH, H, T] =>
             ThisOneAnd(f(Some(v.value)), v.other)
           case v: NotThisOne[HH, H, T] => ThisOneAnd(f(None), v.other)
-          case HONil                   => ThisOneAnd(f(None), HONil)
+          case HOEmpty                   => ThisOneAnd(f(None), HOEmpty)
           case v: NotThis[HH, H, T]    => ThisOneAnd(f(None), v.other)
           case v: ThisAnd[HH, H, T]    =>
             ThisOneAnd(f(Some(v.value)), v.other)
@@ -110,8 +113,7 @@ object HOptionalList {
         a match {
           case v: ThisOneAnd[HH, HA, TA] => ThisOneAnd(v.value, ev.update(v.other, f))
           case v: NotThisOne[HH, HA, TA] => NotThisOne(ev.update(v.other, f))
-          case HONil                     =>
-            NotThisOne(ev.update(HONil, f))
+          case HOEmpty                     => NotThisOne(ev.update(HOEmpty, f))
           case v: NotThis[HH, HA, TA]    => NotThisOne(ev.update(v.other, f))
           case v: ThisAnd[HH, HA, TA]    => ThisOneAnd(v.value, ev.update(v.other, f))
         }
@@ -127,23 +129,23 @@ object Examples extends App {
   type TestType = Boolean ++: Int +: String +: Double +: End
 
   val t3: Boolean +: Int +: String +: Double +: End =
-    NotThisOne(ThisOneAnd(1, HONil))
+    NotThisOne(ThisOneAnd(1, HOEmpty))
 
 
   val t1: TestType =
-    ThisOneAnd(false, HONil)
+    ThisOneAnd(false, HOEmpty)
 
 
 
   val fullHouse: TestType =
-    ThisOneAnd(false, ThisAnd(10, ThisAnd("test", ThisAnd(6.3, HONil))))
+    ThisOneAnd(false, ThisAnd(10, ThisAnd("test", ThisAnd(6.3, HOEmpty))))
 
   val almostFull: TestType =
-    ThisOneAnd(false, NotThis(ThisAnd("test", ThisAnd(6.3, HONil))))
+    ThisOneAnd(false, NotThis(ThisAnd("test", ThisAnd(6.3, HOEmpty))))
 
 
   def countElements[H, T](l: HOptionalList[H, T]): Int = l match {
-    case HONil => 0
+    case HOEmpty => 0
     case NotThis(other) => countElements(other)
     case ThisAnd(_, other) => 1 + countElements(other)
     case NotThisOne(other) => countElements(other)
@@ -213,7 +215,7 @@ object Examples extends App {
   println("Test long chain empty")
   type TestChain = Char ++: Int +: Long +: Double +: String +: End
 
-  val longchain: TestChain = ThisOneAnd('c', HONil)
+  val longchain: TestChain = ThisOneAnd('c', HOEmpty)
   val updatedLast: TestChain = updateFirst[String](longchain, _ => "ohohohoh")
   println("------------")
   println(longchain)

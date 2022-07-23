@@ -71,7 +71,7 @@ class IOSpecs extends FlatSpec with Matchers {
     import cats.syntax.functor._
 
     val r: Unit = {
-      a.runAsync(e => b(e.right.get).as(Unit))
+      a.runAsync(e => b(e.right.get).as(()))
     }.unsafeRunSync()
 
   }

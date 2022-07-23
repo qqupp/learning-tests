@@ -74,7 +74,7 @@ class DecoderSpec extends FlatSpec with Matchers {
 
     val d2: Decoder[Any, Nothing, String] = d1.map(_.toString)
 
-    d2(Unit) shouldBe Right("10")
+    d2(()) shouldBe Right("10")
   }
 
   it should "be contramappable" in {
