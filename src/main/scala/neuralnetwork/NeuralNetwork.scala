@@ -6,11 +6,15 @@ import scala.util.Random
 
 object NeuralNetwork extends App {
 
-  case class Neuron(b_ws: Array[Double], activation: Double => Double) {
+  class Param(var value: Double) {
+    def +=(v: Double): Unit = value += v
+  }
+
+  case class Neuron(ws: List[Param], b: Param, activation: Double => Double) {
     def apply(input: List[Double]): Double =
       activation(
-        input.zip(b_ws.tail).foldLeft(b_ws.head) { case (acc, (x, w)) =>
-          acc + (x * w)
+        input.zip(ws).foldLeft(b.value) { case (acc, (x, w)) =>
+          acc + (x * w.value)
         }
       )
   }
@@ -25,37 +29,34 @@ object NeuralNetwork extends App {
       layers.foldLeft(input) { case (in, layer) => layer(in) }
   }
 
-  class Param(a: Array[Double], idx: Int) {
-    def value: Double = a(idx)
 
-    def +=(v: Double): Unit = a(idx) += v
-  }
+  def builder(inputSize: Int, neuronsXLayer: List[Int]): (List[Param], NeuralNetwork) = {
 
+    val params: ListBuffer[Param] = ListBuffer()
 
-  def builder(inputSize: Int, neuronsXlayer: List[Int]): (List[Param], NeuralNetwork) = {
-
-    val params: ListBuffer[Array[Double]] = ListBuffer()
-
-    def newArray(size: Int): Array[Double] = {
-      val x = Array.fill(size + 1)(Random.between(-1.0, 1.0))
-      params.addOne(x)
-      x
+    def newParams(size: Int): (List[Param], Param) = {
+      val ws = List.fill(size)(new Param(Random.between(-1.0, 1.0)))
+      val b = new Param(Random.between(-1.0, 1.0))
+      params.addAll(ws)
+      params.addOne(b)
+      (ws, b)
     }
 
     val layers: List[Layer] =
-      (inputSize :: neuronsXlayer)
+      (inputSize :: neuronsXLayer)
         .sliding(2)
         .map { case List(in, out) =>
           Layer(
-            List.fill(out)(Neuron(newArray(in), scala.math.tanh))
+            List.fill(out) {
+              val (ws, b) = newParams(in)
+              Neuron(ws, b, scala.math.tanh)
+            }
           )
         }
         .toList
 
-    val p: List[Param] =
-      params.map(a => (a.indices).map(i => new Param(a, i))).toList.flatten
 
-    (p, NeuralNetwork(layers))
+    (params.toList, NeuralNetwork(layers))
 
   }
 
@@ -78,6 +79,8 @@ object NeuralNetwork extends App {
 
   val (params, nn) = builder(3, List(4, 4, 1))
 
+  println(s"Parameters ${params.length}")
+
   val xs = List(
     List(2.0, 3.0, -1.0),
     List(3.0, -1.0, 0.5),
@@ -98,12 +101,13 @@ object NeuralNetwork extends App {
   // training
   for (i <- 1 to 1000) {
     for ((x, y) <- xs.zip(ys)) {
-      val score = loss(nn(_), x, List(y))
+      val f: List[Double] => Double = loss(nn(_), _, List(y))
+
+      val score = f(x)
       println(s"$i   loss: $score, input: $x, target: $y, predicted: ${nn(x)}")
 
       for (p <- params) {
-        val differentiableFun: List[Double] => Double = loss(nn(_), _, List(y))
-        val g = `Df/Dp`(differentiableFun, x, p)
+        val g = `Df/Dp`(f, x, p)
         p.+=( -learningRate * g)
       }
     }
