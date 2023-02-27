@@ -1,5 +1,7 @@
 package simulatedHigherKinds
 
+import simulatedHigherKinds.Defunctionalization.HKT.TypeList
+
 object Defunctionalization {
 
   /*
@@ -182,6 +184,75 @@ object Defunctionalization {
       }
 
     }
+  }
+
+
+  /* based on defunctionalization */
+  object HKT {
+
+
+    type HK[F[_], X] = F[X]
+
+    trait Functor[F[_]] {
+      def map[A, B](fa: HK[F, A], f: A => B): HK[F, B]
+    }
+
+    val listInstance: Functor[List] = new Functor[List] {
+      override def map[A, B](fa: HK[List, A], f: A => B): HK[List, B] = fa match {
+        case Nil => Nil
+        case a :: as => f(a) :: map(as, f)
+      }
+    }
+
+    /* defunctionalization for types */
+
+    sealed trait TTag
+    case object TypeList extends TTag
+    case object TypeOption extends TTag
+
+    class Higher[F <: TTag, X] private(val tpe: F, val content: Any)
+
+    object  Higher {
+      def downCastList[X](l: Higher[TypeList.type, X]): List[X] =
+        l.content.asInstanceOf[List[X]]
+
+      def upCastList[X](l: List[X]): Higher[TypeList.type, X] =
+        new Higher[TypeList.type, X](TypeList, l)
+
+      def downCastOption[X](l: Higher[TypeOption.type, X]): Option[X] =
+        l.content.asInstanceOf[Option[X]]
+
+      def upCastOption[X](o: Option[X]): Higher[TypeOption.type, X] =
+        new Higher[TypeOption.type, X](TypeOption, o)
+    }
+
+    trait FunctorFirstOrder[F <: TTag] {
+      def map[A, B](fa: Higher[F, A], f: A => B): Higher[F, B]
+    }
+
+    import Higher._
+
+    val lamListInstance = new FunctorFirstOrder[TypeList.type] {
+      override def map[A, B](fa: Higher[TypeList.type , A], f: A => B): Higher[TypeList.type, B] =
+        downCastList(fa) match {
+          case Nil => upCastList(Nil)
+          case a :: as => upCastList(f(a) :: downCastList(map(upCastList(as), f)))
+        }
+    }
+
+    val lamOptionInstance = new FunctorFirstOrder[TypeOption.type] {
+      override def map[A, B](fa: Higher[TypeOption.type, A], f: A => B): Higher[TypeOption.type, B] =
+        downCastOption(fa) match {
+          case None => upCastOption(None)
+          case Some(x) => upCastOption(Some(f(x)))
+        }
+    }
+
+
+
+
+
+
   }
 
 }
